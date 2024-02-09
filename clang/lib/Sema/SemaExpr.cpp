@@ -47,6 +47,7 @@
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Overload.h"
+#include "clang/Sema/OverloadCallback.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
@@ -2491,6 +2492,8 @@ bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
         // that one in the notes.
         OverloadCandidateSet Candidates(R.getNameLoc(),
                                         OverloadCandidateSet::CSK_Normal);
+        if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
+          addSetInfo(OverloadInspectionCallbacks, Candidates, {Args});
         AddOverloadedCallCandidates(R, ExplicitTemplateArgs, Args, Candidates);
         OverloadCandidateSet::iterator Best;
         if (Candidates.BestViableFunction(*this, R.getNameLoc(), Best) ==
@@ -2539,6 +2542,8 @@ bool Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
       if (Corrected.isOverloaded()) {
         OverloadCandidateSet OCS(R.getNameLoc(),
                                  OverloadCandidateSet::CSK_Normal);
+        if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
+          addSetInfo(OverloadInspectionCallbacks, OCS, {Args});
         OverloadCandidateSet::iterator Best;
         for (NamedDecl *CD : Corrected) {
           if (FunctionTemplateDecl *FTD =
@@ -5767,6 +5772,8 @@ static TypoCorrection TryTypoCorrectionForCall(Sema &S, Expr *Fn,
     if (NamedDecl *ND = Corrected.getFoundDecl()) {
       if (Corrected.isOverloaded()) {
         OverloadCandidateSet OCS(NameLoc, OverloadCandidateSet::CSK_Normal);
+        //if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))
+        //  addSetInfo(S.OverloadInspectionCallbacks, OCS, Args);
         OverloadCandidateSet::iterator Best;
         for (NamedDecl *CD : Corrected) {
           if (FunctionDecl *FD = dyn_cast<FunctionDecl>(CD))

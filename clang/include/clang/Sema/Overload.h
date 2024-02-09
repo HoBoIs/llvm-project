@@ -414,6 +414,7 @@ class Sema;
                      bool IgnoreFloatToIntegralConversion = false) const;
     bool isPointerConversionToBool() const;
     bool isPointerConversionToVoidPointer(ASTContext& Context) const;
+    void writeToStream(raw_ostream &) const;
     void dump() const;
   };
 
@@ -460,6 +461,7 @@ class Sema;
     /// that refers to \c ConversionFunction.
     DeclAccessPair FoundConversionFunction;
 
+    void writeToStream(raw_ostream &) const;
     void dump() const;
   };
 
@@ -1196,6 +1198,10 @@ class Sema;
     void clear(CandidateSetKind CSK);
 
     using iterator = SmallVectorImpl<OverloadCandidate>::iterator;
+    using const_iterator = SmallVectorImpl<OverloadCandidate>::const_iterator;
+
+    const_iterator begin()const { return Candidates.begin(); }
+    const_iterator end()const { return Candidates.end(); }
 
     iterator begin() { return Candidates.begin(); }
     iterator end() { return Candidates.end(); }

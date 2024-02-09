@@ -14,6 +14,8 @@
 #include "clang/Frontend/CommandLineSourceLoc.h"
 #include "clang/Sema/CodeCompleteOptions.h"
 #include "clang/Serialization/ModuleFileExtension.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -140,6 +142,9 @@ enum ActionKind {
 
   /// Dump template instantiations
   TemplightDump,
+
+  /// Dump overload info
+  OvInsDump,
 
   /// Run migrator.
   MigrateSource,
@@ -590,6 +595,29 @@ public:
 
   /// Output Path for module output file.
   std::string ModuleOutputPath;
+  enum OvdlLevelEnum{
+    SC_Hide=0,
+    SC_Normal,
+    SC_Verbose
+  };
+
+  struct OvInsSettingsType{
+    llvm::SmallVector<std::pair<unsigned,unsigned>,2> Intervals;
+    std::string CandFunName;
+    unsigned ShowNonViableCands:1;
+    unsigned ShowIncludes:1;
+    unsigned ShowCompares:2;
+    unsigned ShowEmptyOverloads:1;
+    unsigned ShowImplicitConversions:1;
+    unsigned ShowConversions:2;
+    unsigned ShowBuiltInNonViable:1;
+    unsigned ShowTemplateSpecs:1;
+    unsigned SummarizeBuiltInBinOps:1;
+    unsigned Help:1;
+    unsigned PrintYAML:1;
+    unsigned measureTime:1;
+  }OvInsSettings;
+
 
 public:
   FrontendOptions()
@@ -607,7 +635,8 @@ public:
         EmitSymbolGraphSymbolLabelsForTesting(false),
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
-        TimeTraceVerbose(false) {}
+        TimeTraceVerbose(false), 
+        OvInsSettings({{},{},true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,false,false}) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.

@@ -74,6 +74,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/TimeProfiler.h"
+#include "clang/Sema/OverloadCallback.h"
 #include <optional>
 
 using namespace clang;
@@ -1540,6 +1541,9 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   if (!PP.isIncrementalProcessingEnabled())
     TUScope = nullptr;
+  for (auto& c:OverloadInspectionCallbacks){
+	  c->atEnd();
+  }
 }
 
 
