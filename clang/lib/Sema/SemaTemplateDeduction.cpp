@@ -1148,6 +1148,7 @@ static TemplateDeductionResult DeduceForEachType(
   //   Pi of the respective parameter-type- list of P is compared with the
   //   corresponding parameter type Ai of the corresponding parameter-type-list
   //   of A. [...]
+  Sema::TemplateDeductionResult::TDK_NonDeducedMismatch;
   unsigned ArgIdx = 0, ParamIdx = 0;
   for (; ParamIdx != Params.size(); ++ParamIdx) {
     // Check argument types.
@@ -5989,9 +5990,9 @@ FunctionTemplateDecl *Sema::getMoreSpecializedTemplate(
   bool Variadic2 =
       FD2->param_size() && FD2->parameters().back()->isParameterPack();
   if (Variadic1 != Variadic2) {
-    if (Variadic1 && NumParams1 > NumParams2)
+    if (Variadic1 && NumParams1 + shouldConvert1 > NumParams2 + shouldConvert2)
       return FT2;
-    if (Variadic2 && NumParams2 > NumParams1)
+    if (Variadic2 && NumParams2 + shouldConvert2 > NumParams1 + shouldConvert1)
       return FT1;
   }
 
