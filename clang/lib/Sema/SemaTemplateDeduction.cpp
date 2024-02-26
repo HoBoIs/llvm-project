@@ -1174,7 +1174,6 @@ static TemplateDeductionResult DeduceForEachType(
                          Args[ArgIdx].getUnqualifiedType(), Info, Deduced, POK);
           Result != TemplateDeductionResult::Success)
         return Result;
-      }
 
       ++ArgIdx;
       continue;
