@@ -5679,10 +5679,15 @@ static TemplateDeductionResult FinishTemplateArgumentDeduction(
 
 /// Determine whether the function template \p FT1 is at least as
 /// specialized as \p FT2.
-static bool isAtLeastAsSpecializedAs(
-    Sema &S, SourceLocation Loc, FunctionTemplateDecl *FT1,
-    FunctionTemplateDecl *FT2, TemplatePartialOrderingContext TPOC,
-    ArrayRef<QualType> Args1, ArrayRef<QualType> Args2, bool Args1Offset) {
+static bool isAtLeastAsSpecializedAs(Sema &S, SourceLocation Loc,
+                                     const FunctionTemplateDecl *FT1,
+                                     const FunctionTemplateDecl *FT2,
+                                     TemplatePartialOrderingContext TPOC,
+                                     bool Reversed,
+                                     const SmallVector<QualType> &Args1,
+                                     const SmallVector<QualType> &Args2) {
+  assert(!Reversed || TPOC == TPOC_Call);
+
   FunctionDecl *FD1 = FT1->getTemplatedDecl();
   FunctionDecl *FD2 = FT2->getTemplatedDecl();
   const FunctionProtoType *Proto1 = FD1->getType()->getAs<FunctionProtoType>();
@@ -5856,6 +5861,33 @@ static bool isAtLeastAsSpecializedAs(
   return true;
 }
 
+/// Returns the more specialized function template according
+/// to the rules of function template partial ordering (C++ [temp.func.order]).
+///
+/// \param FT1 the first function template
+///
+/// \param FT2 the second function template
+///
+/// \param TPOC the context in which we are performing partial ordering of
+/// function templates.
+///
+/// \param NumCallArguments1 The number of arguments in the call to FT1, used
+/// only when \c TPOC is \c TPOC_Call.
+///
+/// \param RawObj1Ty The type of the object parameter of FT1 if a member
+/// function only used if \c TPOC is \c TPOC_Call and FT1 is a Function
+/// template from a member function
+///
+/// \param RawObj2Ty The type of the object parameter of FT2 if a member
+/// function only used if \c TPOC is \c TPOC_Call and FT2 is a Function
+/// template from a member function
+///
+/// \param Reversed If \c true, exactly one of FT1 and FT2 is an overload
+/// candidate with a reversed parameter order. In this case, the corresponding
+/// P/A pairs between FT1 and FT2 are reversed.
+///
+/// \returns the more specialized function template. If neither
+/// template is more specialized, returns NULL.
 FunctionTemplateDecl *Sema::getMoreSpecializedTemplate(
     FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
     TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
