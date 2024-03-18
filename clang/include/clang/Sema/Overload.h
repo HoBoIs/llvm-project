@@ -1165,6 +1165,9 @@ class Sema;
     void destroyCandidates();
 
   public:
+    OverloadCandidateSet(Sema& S, SourceLocation Loc, CandidateSetKind CSK,
+                         OperatorRewriteInfo RewriteInfo = {})
+        : Loc(Loc), Kind(CSK), RewriteInfo(RewriteInfo) {}
     OverloadCandidateSet(SourceLocation Loc, CandidateSetKind CSK,
                          OperatorRewriteInfo RewriteInfo = {})
         : Loc(Loc), Kind(CSK), RewriteInfo(RewriteInfo) {}
