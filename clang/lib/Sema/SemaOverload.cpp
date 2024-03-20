@@ -1669,11 +1669,11 @@ TryUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
   }
 
   // Attempt user-defined conversion.
-  OverloadCandidateSet Conversions(From->getExprLoc(),
+  OverloadCandidateSet Conversions(S, From->getExprLoc(),
                                    OverloadCandidateSet::CSK_Normal);
   if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty() )){
       addSetInfo(S.OverloadInspectionCallbacks, Conversions, 
-                 {ToType.getAsString(),From,{},{},AllowExplicit==AllowedExplicit::None});
+                 {ToType.getAsString()+" Y",From,{},{},AllowExplicit==AllowedExplicit::None});
       //toType.toString();
   }
   switch (IsUserDefinedConversion(S, From, ToType, ICS.UserDefined,
@@ -4072,7 +4072,7 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
 bool
 Sema::DiagnoseMultipleUserDefinedConversion(Expr *From, QualType ToType) {
   ImplicitConversionSequence ICS;
-  OverloadCandidateSet CandidateSet(From->getExprLoc(),
+  OverloadCandidateSet CandidateSet(*this, From->getExprLoc(),
                                     OverloadCandidateSet::CSK_Normal);
   //if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
   //  addSetInfo(OverloadInspectionCallbacks, CandidateSet, {From,From->getEndLoc()});
@@ -5058,7 +5058,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
   assert(T2->isRecordType() && "Can only find conversions of record types.");
   auto *T2RecordDecl = cast<CXXRecordDecl>(T2->castAs<RecordType>()->getDecl());
 
-  OverloadCandidateSet CandidateSet(
+  OverloadCandidateSet CandidateSet(S,
       DeclLoc, OverloadCandidateSet::CSK_InitByUserDefinedConversion);
   if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
     addSetInfo(S.OverloadInspectionCallbacks, CandidateSet, 
@@ -6819,10 +6819,10 @@ ExprResult Sema::PerformContextualImplicitConversion(
     // If one unique T is found:
     // First, build a candidate set from the previously recorded
     // potentially viable conversions.
-    OverloadCandidateSet CandidateSet(Loc, OverloadCandidateSet::CSK_Normal);
+    OverloadCandidateSet CandidateSet(*this, Loc, OverloadCandidateSet::CSK_Normal);
     if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, 
-                 {ToType.getAsString(),From,From->getEndLoc(),{},true});
+                 {ToType.getAsString()+" X",From,From->getEndLoc(),{},true});
     //ToType->getNameAsString
     collectViableConversionCandidates(*this, From, ToType, ViableConversions,
                                       CandidateSet);
@@ -12848,7 +12848,11 @@ SmallVector<OverloadCandidate *, 32> OverloadCandidateSet::CompleteCandidates(
 
   return Cands;
 }
-
+OverloadCandidateSet::~OverloadCandidateSet(){
+  if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))
+    destructOCS(S.OverloadInspectionCallbacks, this);
+  destroyCandidates();
+}
 bool OverloadCandidateSet::shouldDeferDiags(Sema &S, ArrayRef<Expr *> Args,
                                             SourceLocation OpLoc) {
   bool DeferHint = false;
@@ -13932,7 +13936,7 @@ static bool DiagnoseTwoPhaseLookup(
     if (!R.empty()) {
       R.suppressDiagnostics();
 
-      OverloadCandidateSet Candidates(FnLoc, CSK);
+      OverloadCandidateSet Candidates(SemaRef, FnLoc, CSK);
       if (LLVM_UNLIKELY(!SemaRef.OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
         addSetInfo(SemaRef.OverloadInspectionCallbacks, Candidates, 
                    {R.getLookupName().getAsString(),Args});
@@ -14392,7 +14396,7 @@ ExprResult Sema::BuildOverloadedCallExpr(Scope *S, Expr *Fn,
                                          Expr *ExecConfig,
                                          bool AllowTypoCorrection,
                                          bool CalleesAddressIsTaken) {
-  OverloadCandidateSet CandidateSet(
+  OverloadCandidateSet CandidateSet( *this,
       Fn->getExprLoc(), CalleesAddressIsTaken
                             ? OverloadCandidateSet::CSK_AddressOfOverloadSet
                             : OverloadCandidateSet::CSK_Normal);
@@ -14574,7 +14578,7 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
   }
 
   // Build an empty overload set.
-  OverloadCandidateSet CandidateSet(OpLoc, OverloadCandidateSet::CSK_Operator);
+  OverloadCandidateSet CandidateSet(*this, OpLoc, OverloadCandidateSet::CSK_Operator);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, {"OP",ArgsArray});
   //OpName(Op or Opc)
@@ -14866,7 +14870,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     return CreateBuiltinBinOp(OpLoc, Opc, Args[0], Args[1]);
 
   // Build the overload set.
-  OverloadCandidateSet CandidateSet(OpLoc, OverloadCandidateSet::CSK_Operator,
+  OverloadCandidateSet CandidateSet(*this ,OpLoc, OverloadCandidateSet::CSK_Operator,
                           OverloadCandidateSet::OperatorRewriteInfo(
                             Op, OpLoc, AllowRewrittenCandidates));//???
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
@@ -15429,7 +15433,7 @@ ExprResult Sema::CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
     return ExprError();
   }
   // Build an empty overload set.
-  OverloadCandidateSet CandidateSet(LLoc, OverloadCandidateSet::CSK_Operator);
+  OverloadCandidateSet CandidateSet(*this,LLoc, OverloadCandidateSet::CSK_Operator);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, 
                 {Args[0]->getType().getAsString()+"[]",Args,RLoc});
@@ -15686,7 +15690,7 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
                             : UnresExpr->getBase()->Classify(Context);
 
     // Add overload candidates
-    OverloadCandidateSet CandidateSet(UnresExpr->getMemberLoc(), OverloadCandidateSet::CSK_Normal);
+    OverloadCandidateSet CandidateSet(*this,UnresExpr->getMemberLoc(), OverloadCandidateSet::CSK_Normal);
     if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, 
                  {UnresExpr->getMemberNameInfo().getName().getAsString(),Args,RParenLoc,UnresExpr});
@@ -15935,7 +15939,7 @@ Sema::BuildCallToObjectOfClassType(Scope *S, Expr *Obj,
   //  operators of T. The function call operators of T are obtained by
   //  ordinary lookup of the name operator() in the context of
   //  (E).operator().
-  OverloadCandidateSet CandidateSet(LParenLoc,
+  OverloadCandidateSet CandidateSet(*this,LParenLoc,
                                     OverloadCandidateSet::CSK_Operator);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, {"()",Args,RParenLoc,Obj});
@@ -16206,7 +16210,7 @@ ExprResult Sema::BuildOverloadedArrowExpr(Scope *S, Expr *Base,
   //   overload resolution mechanism (13.3).
   DeclarationName OpName =
     Context.DeclarationNames.getCXXOperatorName(OO_Arrow);
-  OverloadCandidateSet CandidateSet(Loc, OverloadCandidateSet::CSK_Operator);
+  OverloadCandidateSet CandidateSet(*this,Loc, OverloadCandidateSet::CSK_Operator);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, {"->",Base,OpLoc});
   //"->" typename?
@@ -16327,7 +16331,7 @@ ExprResult Sema::BuildLiteralOperatorCall(LookupResult &R,
                                        TemplateArgumentListInfo *TemplateArgs) {
   SourceLocation UDSuffixLoc = SuffixInfo.getCXXLiteralOperatorNameLoc();
 
-  OverloadCandidateSet CandidateSet(UDSuffixLoc,
+  OverloadCandidateSet CandidateSet(*this,UDSuffixLoc,
                                     OverloadCandidateSet::CSK_Normal);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
       addSetInfo(OverloadInspectionCallbacks, CandidateSet, {R.getLookupName().getAsString(),Args,LitEndLoc});
