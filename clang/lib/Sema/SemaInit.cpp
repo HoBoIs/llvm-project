@@ -6446,7 +6446,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
                                             MultiExprArg Args,
                                             bool TopLevelOfInitList,
                                             bool TreatUnavailableAsInvalid) {
-  llvm::errs()<<"{";
   ASTContext &Context = S.Context;
 
   // Eliminate non-overload placeholder types in the arguments.  We
@@ -6459,7 +6458,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
       ExprResult result = S.CheckPlaceholderExpr(Args[I]);
       if (result.isInvalid()) {
         SetFailed(FK_PlaceholderType);
-        llvm::errs()<<"1}";
         return;
       }
       Args[I] = result.get();
@@ -6476,7 +6474,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
   if (DestType->isDependentType() ||
       Expr::hasAnyTypeDependentArguments(Args)) {
     SequenceKind = DependentSequence;
-    llvm::errs()<<"2}";
     return;
   }
 
@@ -6504,7 +6501,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     if (InitListExpr *InitList = dyn_cast_or_null<InitListExpr>(Initializer)) {
       TryListInitialization(S, Entity, Kind, InitList, *this,
                             TreatUnavailableAsInvalid);
-    llvm::errs()<<"3}";
       return;
     }
   }
@@ -6540,7 +6536,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     else
       TryReferenceInitialization(S, Entity, Kind, Args[0], *this,
                                  TopLevelOfInitList);
-    llvm::errs()<<"3.5}";
     return;
   }
 
@@ -6548,14 +6543,12 @@ void InitializationSequence::InitializeFrom(Sema &S,
   if (Kind.getKind() == InitializationKind::IK_Value ||
       (Kind.getKind() == InitializationKind::IK_Direct && Args.empty())) {
     TryValueInitialization(S, Entity, Kind, *this);
-    llvm::errs()<<"4}";
     return;
   }
 
   // Handle default initialization.
   if (Kind.getKind() == InitializationKind::IK_Default) {
     TryDefaultInitialization(S, Entity, Kind, *this);
-    llvm::errs()<<"5}";
     return;
   }
 
@@ -6570,7 +6563,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     const ArrayType *DestAT = Context.getAsArrayType(DestType);
     if (Initializer && isa<VariableArrayType>(DestAT)) {
       SetFailed(FK_VariableLengthArrayHasInitializer);
-    llvm::errs()<<"6}";
       return;
     }
 
@@ -6578,27 +6570,21 @@ void InitializationSequence::InitializeFrom(Sema &S,
       switch (IsStringInit(Initializer, DestAT, Context)) {
       case SIF_None:
         TryStringLiteralInitialization(S, Entity, Kind, Initializer, *this);
-    llvm::errs()<<"7}";
         return;
       case SIF_NarrowStringIntoWideChar:
         SetFailed(FK_NarrowStringIntoWideCharArray);
-    llvm::errs()<<"8}";
         return;
       case SIF_WideStringIntoChar:
         SetFailed(FK_WideStringIntoCharArray);
-    llvm::errs()<<"9}";
         return;
       case SIF_IncompatWideStringIntoWideChar:
         SetFailed(FK_IncompatWideStringIntoWideChar);
-    llvm::errs()<<"10}";
         return;
       case SIF_PlainStringIntoUTF8Char:
         SetFailed(FK_PlainStringIntoUTF8Char);
-    llvm::errs()<<"11}";
         return;
       case SIF_UTF8StringIntoPlainChar:
         SetFailed(FK_UTF8StringIntoPlainChar);
-    llvm::errs()<<"12}";
         return;
       case SIF_Other:
         break;
@@ -6651,7 +6637,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     else
       SetFailed(FK_ArrayNeedsInitList);
 
-    llvm::errs()<<"15}";
     return;
   }
 
@@ -6661,10 +6646,7 @@ void InitializationSequence::InitializeFrom(Sema &S,
          Entity.isParameterKind();
 
   if (TryOCLSamplerInitialization(S, *this, DestType, Initializer))
-  {
-    llvm::errs()<<"16}";
     return;
-  }
 
   // We're at the end of the line for C: it's either a write-back conversion
   // or it's a C assignment. There's no need to check anything else.
@@ -6673,7 +6655,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     // If allowed, check whether this is an Objective-C writeback conversion.
     if (allowObjCWritebackConversion &&
         tryObjCWritebackConversion(S, *this, Entity, Initializer)) {
-    llvm::errs()<<"17}";
       return;
     }
 
@@ -6683,7 +6664,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     // Handle initialization in C
     AddCAssignmentStep(DestType);
     MaybeProduceObjCObject(S, *this, Entity);
-    llvm::errs()<<"19}";
     return;
   }
 
@@ -6700,7 +6680,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
          (Context.hasSameUnqualifiedType(SourceType, DestType) ||
           (Initializer && S.IsDerivedFrom(Initializer->getBeginLoc(),
                                           SourceType, DestType))))) {
-      llvm::errs()<<"-";
       TryConstructorInitialization(S, Entity, Kind, Args, DestType, DestType,
                                    *this);
 
@@ -6738,7 +6717,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
         }
       }
     } else {
-      llvm::errs()<<"+";
       //     - Otherwise (i.e., for the remaining copy-initialization cases),
       //       user-defined conversion sequences that can convert from the
       //       source type to the destination type or (when a conversion
@@ -6749,7 +6727,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
       TryUserDefinedConversion(S, DestType, Kind, Initializer, *this,
                                TopLevelOfInitList);
     }
-    llvm::errs()<<"20}";
     return;
   }
 
@@ -6783,18 +6760,15 @@ void InitializationSequence::InitializeFrom(Sema &S,
         S.getASTContext(), SourceLocation(), InitArgs, SourceLocation());
     Args[0] = ILE;
     AddListInitializationStep(DestType);
-    llvm::errs()<<"21}";
     return;
   }
 
   // The remaining cases all need a source type.
   if (Args.size() > 1) {
     SetFailed(FK_TooManyInitsForScalar);
-    llvm::errs()<<"22}";
     return;
   } else if (isa<InitListExpr>(Args[0])) {
     SetFailed(FK_ParenthesizedListInitForScalar);
-    llvm::errs()<<"23}";
     return;
   }
 
@@ -6819,7 +6793,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
     MaybeProduceObjCObject(S, *this, Entity);
     if (!Failed() && NeedAtomicConversion)
       AddAtomicConversionStep(Entity.getType());
-    llvm::errs()<<"24}";
     return;
   }
 
@@ -6833,7 +6806,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
         ImplicitConversionSequence::getNullptrToBool(SourceType, DestType,
                                                      Initializer->isGLValue()),
         DestType);
-    llvm::errs()<<"25}";
     return;
   }
 
@@ -6891,7 +6863,6 @@ void InitializationSequence::InitializeFrom(Sema &S,
 
     MaybeProduceObjCObject(S, *this, Entity);
   }
-  llvm::errs()<<"}";
 }
 
 InitializationSequence::~InitializationSequence() {
