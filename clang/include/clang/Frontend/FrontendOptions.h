@@ -600,6 +600,12 @@ public:
     SC_Normal,
     SC_Verbose
   };
+  enum OvdlTimeSetting{
+    SC_None=0,
+    SC_Unique=1,
+    SC_Summaize=2,
+    SC_OnlyTime=3
+  };
 
   struct OvInsSettingsType{
     llvm::SmallVector<std::pair<unsigned,unsigned>,2> Intervals;
@@ -615,7 +621,7 @@ public:
     unsigned SummarizeBuiltInBinOps:1;
     unsigned Help:1;
     unsigned PrintYAML:1;
-    unsigned measureTime:1;
+    unsigned measureTime:2;
   }OvInsSettings;
 
 
