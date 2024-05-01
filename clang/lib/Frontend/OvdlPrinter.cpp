@@ -520,6 +520,7 @@ public:
   virtual void atEnd() override {
     //TODO: filename
     auto name=getFilename();
+    if (settings.measureTime != clang::FrontendOptions::SC_OnlyTime){
     if (settings.PrintYAML) {
       auto& osref=makeOSRef(name);
       for (auto &x : cont)
@@ -534,11 +535,12 @@ public:
     } else {
       llvm::outs()<<name<<":\n";
       printHumanReadable();
-      cont = {};
-      for (const auto& [k,v]:timeMap){
-        llvm::outs()<<k<<": \t"<<v.cnt<<"\t "<<v.Time.getWallTime()<<"\t "<< v.childTime.getWallTime() <<"\n";
-      }
-      timeMap={};
+    }
+    cont = {};
+    if (settings.measureTime & 2)
+    for (const auto& [k,v]:timeMap){
+      //TODO: print
+      llvm::outs()<<k<<": \tcount:\t"<<v.cnt<<"\t overload time:\t"<<v.Time.getWallTime()<<"s\t from witch in children: \t"<< v.childTime.getWallTime() <<"s\n";
     }
   }
   virtual void atOverloadBegin(const Sema &s, const SourceLocation &loc,
@@ -595,7 +597,8 @@ public:
       return;
     }
     assert(&set == timeStack.back().ocs);
-    timeStack.back().isDisplayed=true;
+    if (settings.measureTime)
+	timeStack.back().isDisplayed=true;
     //time
     std::chrono::time_point<std::chrono::steady_clock> ovEndTime;
     if (settings.measureTime)
@@ -616,6 +619,8 @@ public:
     if (!node.Entry.isImplicit || settings.ShowImplicitConversions)
       if (nameOk())
         cont.add(node);
+      else
+	timeStack.back().isDisplayed=false;
 
     inBestOC = false;
   }
