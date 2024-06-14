@@ -642,7 +642,7 @@ public:
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
         TimeTraceVerbose(false), 
-        OvInsSettings({{},{},true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,false,false}) {}
+        OvInsSettings({{},"",true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,false,SC_None}) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.
