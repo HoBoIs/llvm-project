@@ -608,7 +608,7 @@ public:
   };
 
   struct OvInsSettingsType{
-    llvm::SmallVector<std::pair<unsigned,unsigned>,2> Intervals;
+    llvm::SmallVector<std::pair<unsigned,unsigned>,0> Intervals;
     std::string CandFunName;
     unsigned ShowNonViableCands:1;
     unsigned ShowIncludes:1;
@@ -619,7 +619,6 @@ public:
     unsigned ShowBuiltInNonViable:1;
     unsigned ShowTemplateSpecs:1;
     unsigned SummarizeBuiltInBinOps:1;
-    unsigned Help:1;
     unsigned PrintYAML:1;
     unsigned measureTime:2;
   }OvInsSettings;
@@ -642,7 +641,7 @@ public:
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
         TimeTraceVerbose(false), 
-        OvInsSettings({{},"",true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,false,SC_None}) {}
+        OvInsSettings({{},"",true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None}) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.
