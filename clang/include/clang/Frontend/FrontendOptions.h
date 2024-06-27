@@ -143,9 +143,6 @@ enum ActionKind {
   /// Dump template instantiations
   TemplightDump,
 
-  /// Dump overload info
-  OvInsDump,
-
   /// Run migrator.
   MigrateSource,
 
@@ -593,14 +590,18 @@ public:
   /// Path which stores the output files for -ftime-trace
   std::string TimeTracePath;
 
+<<<<<<< HEAD
   /// Output Path for module output file.
   std::string ModuleOutputPath;
   enum OvdlLevelEnum{
+=======
+  enum OvInsLevelEnum{
+>>>>>>> 857a28b8d1a5 (Support for compile and measure at the same time)
     SC_Hide=0,
     SC_Normal,
     SC_Verbose
   };
-  enum OvdlTimeSetting{
+  enum OvInsTimeSetting{
     SC_None=0,
     SC_Unique=1,
     SC_Summaize=2,
@@ -610,6 +611,7 @@ public:
   struct OvInsSettingsType{
     llvm::SmallVector<std::pair<unsigned,unsigned>,0> Intervals;
     std::string CandFunName;
+    unsigned enabled:1;
     unsigned ShowNonViableCands:1;
     unsigned ShowIncludes:1;
     unsigned ShowCompares:2;
@@ -641,7 +643,7 @@ public:
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
         TimeTraceVerbose(false), 
-        OvInsSettings({{},"",true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None}) {}
+        OvInsSettings({{},"",false,true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None}) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.
