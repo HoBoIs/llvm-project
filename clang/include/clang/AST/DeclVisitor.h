@@ -34,7 +34,7 @@ public:
 #define DISPATCH(NAME, CLASS) \
   return static_cast<ImplClass*>(this)->Visit##NAME(static_cast<PTR(CLASS)>(D))
 
-  RetTy Visit(PTR(Decl) D) {
+  RetTy Visit(const PTR(Decl) D) {
     switch (D->getKind()) {
 #define DECL(DERIVED, BASE) \
       case Decl::DERIVED: DISPATCH(DERIVED##Decl, DERIVED##Decl);

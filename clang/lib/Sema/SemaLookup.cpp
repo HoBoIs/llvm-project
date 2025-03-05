@@ -2402,7 +2402,7 @@ static bool LookupQualifiedNameInUsingDirectives(Sema &S, LookupResult &R,
 }
 
 bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
-                               bool InUnqualifiedLookup) {
+                               bool InUnqualifiedLookup) {//HERE
   assert(LookupCtx && "Sema::LookupQualifiedName requires a lookup context");
 
   if (!R.getLookupName())
@@ -2417,9 +2417,9 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
 
   struct QualifiedLookupInScope {
     bool oldVal;
-    DeclContext *Context;
+    const DeclContext *Context;
     // Set flag in DeclContext informing debugger that we're looking for qualified name
-    QualifiedLookupInScope(DeclContext *ctx)
+    QualifiedLookupInScope(const DeclContext *ctx)
         : oldVal(ctx->shouldUseQualifiedLookup()), Context(ctx) {
       ctx->setUseQualifiedLookup();
     }
