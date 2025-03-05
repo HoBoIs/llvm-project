@@ -26,6 +26,7 @@
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Initialization.h"
@@ -46,6 +47,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <optional>
+#include <unordered_map>
 
 using namespace clang;
 using namespace sema;
@@ -5613,11 +5615,46 @@ TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
                       bool InOverloadResolution,
                       bool AllowObjCWritebackConversion,
                       bool AllowExplicit) {
+ /* 
+  struct Params{
+    QualType from,to;
+    bool pmrs[4];
+    ExprValueKind vk;
+    bool operator==(const Params& o)const{
+      return from==o.from && to==o.to&& vk==o.vk && pmrs[0]==o.pmrs[0]
+        && pmrs[1]==o.pmrs[1]&& pmrs[2]==o.pmrs[2]&& pmrs[3]==o.pmrs[3];
+    }
+  };
+  Params p;
+  p.from=From->getType();
+  p.to=ToType;
+  p.vk=From->getValueKind();
+  p.pmrs[0] = SuppressUserConversions;
+  p.pmrs[1] = InOverloadResolution;
+  p.pmrs[2] = AllowObjCWritebackConversion;
+  p.pmrs[3] = AllowExplicit;
+  auto hashFn=[](const Params& p){
+    return size_t(p.from.getAsOpaquePtr())^(p.vk<<3)^
+        (((size_t)p.to.getAsOpaquePtr())<<1)^(p.pmrs[0]<<2);};
+  static std::unordered_map<Params, ImplicitConversionSequence, decltype(hashFn)> cache(0,hashFn);
+  auto f=cache.find(p);
+  ImplicitConversionSequence res;
+  if (f!=cache.end() ){
+    res = f->second;
+    if (0 && res.isBad()){
+      res.Bad.FromExpr=From;
+    }//else if (res.isAmbiguous()){
+
+    //}
+    return res;
+  }else{*/
   if (InitListExpr *FromInitList = dyn_cast<InitListExpr>(From))
+      //res = TryListConversion(S, FromInitList, ToType, SuppressUserConversions,
     return TryListConversion(S, FromInitList, ToType, SuppressUserConversions,
                              InOverloadResolution,AllowObjCWritebackConversion);
 
   if (ToType->isReferenceType())
+      //res = TryReferenceInit(S, From, ToType,
     return TryReferenceInit(S, From, ToType,
                             /*FIXME:*/ From->getBeginLoc(),
                             SuppressUserConversions, AllowExplicit);
@@ -5629,6 +5666,11 @@ TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
                                /*CStyle=*/false,
                                AllowObjCWritebackConversion,
                                /*AllowObjCConversionOnExplicit=*/false);
+    /*if (! res.isAmbiguous() && !res.isBad() )
+      cache.insert(f, {p,res});
+      //cache[p]=res;
+    return res;
+  }*/
 }
 
 static bool TryCopyInitialization(const CanQualType FromQTy,
@@ -10759,7 +10801,6 @@ bool Sema::isEquivalentInternalLinkageDeclaration(const NamedDecl *A,
       VA->isExternallyVisible() || VB->isExternallyVisible())
     return false;
 
-  llvm::errs()<<"PASSED";
   VA->dump();
   VB->dump();
   // Check that the declarations appear to be equivalent.

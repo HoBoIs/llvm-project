@@ -1,3 +1,4 @@
+#include <valgrind/callgrind.h>
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
@@ -177,13 +178,16 @@ struct timeInfo{
   const OverloadCandidateSet* ocs;
   std::string name;
   llvm::TimeRecord startTime;
+  llvm::TimeRecord MidTime;
   llvm::TimeRecord Time;
+  llvm::TimeRecord TimeBef;
   llvm::TimeRecord childTime;
   BestFunInfo bestFun;
   bool isDisplayed=false;
 };
 struct timePartInfo{
   double Time=0;
+  double TimeBef=0;
   double childTime=0;
   double topLevelTime=0;
   int cnt=0;
@@ -196,12 +200,14 @@ struct timePartInfo{
   timePartInfo(const timeInfo& ti){
     cnt=1;
     Time=getTimeOf(ti.Time);
+    TimeBef=getTimeOf(ti.TimeBef);
     childTime=getTimeOf(ti.childTime); 
   }
 
   timePartInfo& operator+=(const timeInfo& ti){
     ++cnt;
     Time +=getTimeOf(ti.Time);
+    TimeBef +=getTimeOf(ti.TimeBef);
     childTime +=getTimeOf( ti.childTime);
     return *this;
   }
@@ -209,6 +215,7 @@ struct timePartInfo{
 
 struct sumTimeInfo{
   llvm::TimeRecord Time;
+  llvm::TimeRecord TimeBef;
   llvm::TimeRecord childTime;
   llvm::TimeRecord topLevelTime;
   int cnt=0;
@@ -217,6 +224,7 @@ struct sumTimeInfo{
   //llvm::DenseMap<BestFunInfo, timePartInfo> M;
   sumTimeInfo& operator+=(const timeInfo& ti){
     Time += ti.Time;
+    TimeBef += ti.TimeBef;
     childTime += ti.childTime;
     ++cnt;
     auto it=M.find(ti.bestFun);
@@ -231,6 +239,7 @@ struct sumTimeInfo{
 };
 struct sumTimeInfoData{
   double time=0,childTime=0;
+  double timeBef=0;
   double topLevelTime=0;
   int cnt=0,topLevelCnt=0;
   std::string name;
@@ -244,6 +253,7 @@ struct sumTimeInfoData{
   sumTimeInfoData(const sumTimeInfo& t, const std::string& n,const Sema* s):
     time(getTimeOf(t.Time)),
     childTime(getTimeOf(t.childTime)),
+    timeBef(getTimeOf(t.TimeBef)),
     topLevelTime(getTimeOf(t.topLevelTime)), cnt(t.cnt), 
     topLevelCnt(t.topLevelCnt), name(n) {
           PrintingPolicy pp=s->getLangOpts();
@@ -271,7 +281,7 @@ struct sumTimeInfoData{
   }
   sumTimeInfoData(const llvm::TimeRecord& t, const std::string& n):
     time(getTimeOf(t)),
-    childTime{}, cnt(1),name(n){
+    childTime{}, timeBef{}, cnt(1),name(n){
   }
 };
 
@@ -366,6 +376,7 @@ struct OvInsResEntry {
   clang::OverloadingResult ovRes;
   bool isImplicit = false;
   long passedTime;
+  long passedTimeBef;
   //std::vector<std::pair<std::string,long>> TimePoints;
   //std::chrono::time_point<std::chrono::steady_clock> lastTimePoint;
 };
@@ -431,6 +442,7 @@ template <> struct MappingTraits<sumTimeInfoData> {
     io.mapRequired("name",fields.name);
     io.mapRequired("count",fields.cnt);
     io.mapRequired("time" ,fields.time);
+    io.mapRequired("TimeBef" ,fields.timeBef);
     io.mapRequired("child-time",fields.childTime);
     io.mapRequired("top-level-time",fields.topLevelTime);
     io.mapRequired("top-level-count",fields.topLevelCnt);
@@ -443,6 +455,7 @@ template <> struct MappingTraits<std::pair<std::string,timePartInfo>> {
     io.mapRequired("selected", fields.first);
     io.mapRequired("count",fields.second.cnt);
     io.mapRequired("time" ,fields.second.Time);
+    io.mapRequired("timeBefore" ,fields.second.TimeBef);
     io.mapRequired("child-time",fields.second.childTime);
     io.mapRequired("top-level-time",fields.second.topLevelTime);
     io.mapRequired("top-level-count",fields.second.topLevelCnt);
@@ -501,6 +514,7 @@ template <> struct MappingTraits<OvInsResEntry> {
     io.mapOptional("Implicit", fields.isImplicit, false);
     io.mapOptional("note", fields.note, "");
     io.mapOptional("nanoseconds", fields.passedTime, 0);
+    io.mapOptional("nanosecondsBef", fields.passedTimeBef, 0);
   }
 };
 
@@ -710,6 +724,7 @@ public:
   virtual void addSetInfo(const OverloadCandidateSet &Set,
                           const SetInfo &S) override {
     if (!timeStack.empty())return;
+CALLGRIND_TOGGLE_COLLECT;
     SetArgMap[&Set].Set = &Set;
     auto& args=SetArgMap[&Set];
     if (args.valid && args.Loc != Set.getLocation()) {
@@ -777,6 +792,7 @@ public:
       compareResults = c;
   };
   size_t cnt_=0;
+  llvm::TimeRecord StartSet;
   virtual void atOCSDestruct(const OverloadCandidateSet* s) override {
     S=&s->getSema();
     if (cnt_ < SetArgMap.size()){
@@ -790,9 +806,15 @@ public:
     }
     if (timeStack.empty() || timeStack.back().ocs!=s)
       return;
+    if (timeStack.size()==1)
+    CALLGRIND_TOGGLE_COLLECT;
     //assert(timeStack.back()->ocs==s && "NOT TOP");
     if (timeStack.back().ocs==s){
-      timeStack.back().Time+=llvm::TimeRecord::getCurrentTime(false);
+      auto x=llvm::TimeRecord::getCurrentTime(false);
+      timeStack.back().TimeBef=timeStack.back().MidTime;
+      //timeStack.back().TimeBef+=x;
+      timeStack.back().Time+=x;
+      //timeStack.back().TimeBef-=timeStack.back().MidTime;
       timeStack.back().Time-=timeStack.back().startTime;
       if (timeStack.size()>1){
         timeStack[timeStack.size()-2].childTime+=timeStack.back().Time;
@@ -825,10 +847,17 @@ public:
     }*/
     SetArgMap.erase(s);
   }
-  virtual void initialize(const Sema & s) override{};
+  virtual void initialize(const Sema & s) override{
+    CALLGRIND_ZERO_STATS;
+    CALLGRIND_TOGGLE_COLLECT;
+    //CALLGRIND_DUMP_STATS;
+//CALLGRIND_ZERO_STATS;
+  };
   virtual void finalize(const Sema &) override{};
   virtual void atEnd() override {
     auto name=fileName;
+    CALLGRIND_DUMP_STATS_AT((fileName+"__.callGrindOut").c_str());
+    //CALLGRIND_DUMP_STATS;
     if (settings.PrintYAML) {
       auto PrintStartTime=llvm::TimeRecord::getCurrentTime();
       auto& osref=makeOSRef(name);
@@ -882,6 +911,7 @@ public:
   }
   virtual void atOverloadBegin(const Sema &s, const SourceLocation &loc,
                                const OverloadCandidateSet &set) override {
+
     Loc = loc;
     Set = &set;
     if (!S){
@@ -927,6 +957,8 @@ public:
     if (fileName=="") fileName=getFilename();
     if (settings.measureTime )
       ovStartTime = std::chrono::steady_clock().now();
+    if (settings.measureTime && timeStack.size())
+      StartSet = llvm::TimeRecord::getCurrentTime();
   }
   virtual void atOverloadEnd(const Sema &s, const SourceLocation &loc,
                              const OverloadCandidateSet &set,
@@ -948,15 +980,21 @@ public:
     assert(timeStack.empty() ||  &set == timeStack.back().ocs);
     if (settings.measureTime)
 	    timeStack.back().isDisplayed=true;
+    if (settings.measureTime && timeStack.size()){
+      timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime(false); 
+      timeStack.back().MidTime-=StartSet;
+      //timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime();
+      //timeStack.back().MidTime-=timeStack.back().startTime;
+    }
     //time
     std::chrono::time_point<std::chrono::steady_clock> ovEndTime;
-    if (settings.measureTime)
-      ovEndTime = std::chrono::steady_clock().now();
 
     PresumedLoc L = S->getSourceManager().getPresumedLoc(loc);
     //node.line = L.getLine();
     //node.Fname = L.getFilename();
     if (settings.measureTime != FrontendOptions::SC_OnlyTime) {
+      if (settings.measureTime)
+        ovEndTime = std::chrono::steady_clock().now();
       OvInsResNode node;
       node.line = L.getLine();
       node.Fname = L.getFilename();
