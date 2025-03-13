@@ -14765,7 +14765,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
       return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && size==o.size;
       // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
     }
-  } key{Args,Op,AllowRewrittenCandidates,Fns.size()};
+  };
   struct CacheHash{
     size_t operator()(const CacheKey& val)const{
       return size_t (val.lhs.getAsOpaquePtr()) ^
@@ -14789,70 +14789,25 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     int cacheHits=0;
     int cacheMiss=0;
     int cacheSize=0;
+    int stlMiss=0;
     int InitLists=0;
-    ~printDS(){llvm::errs()<<cacheSize<<"=cs\n"<<cacheHits<<"=CacheHit\n"<<cacheMiss<<"=CacheMiss\t"<<InitLists<<"=InitLists\n";}
+    ~printDS(){llvm::errs()<<cacheSize<<"=cs\n"<<cacheHits<<"=CacheHit\n"<<cacheMiss<<"=CacheMiss\t"<<stlMiss<<"=stlmiss\t"<<InitLists<<"=InitLists\n";}
   };
   static printDS p;
-  static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
-  auto it=hasInitList ? cache.end(): cache.find(key);
   p.InitLists+=hasInitList;
-  if (1 && it!=cache.end() && !AllowRewrittenCandidates){
+  static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
+  auto it=  cache.end();
+  CacheKey key{Args,Op,AllowRewrittenCandidates,Fns.size()};
+  if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
+    it=cache.find(key);
+  }
+  if (it!=cache.end() && !AllowRewrittenCandidates){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
     HadMultipleCandidates=it->second.hadMultipleCandidates;
     cacheHit=1;
     p.cacheHits++;
-    if (0 && p.cacheHits==904){
-  if (DefaultedFn)
-    CandidateSet.exclude(DefaultedFn);
-  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
-  llvm::errs()<<"\n\n\n-----------------\n\n\n";
-  if (Best->Function)
-  Best->Function->dump();
-  else
-    llvm::errs()<<"NULL";
-  auto* B2=Best;
-  ovRes=CandidateSet.BestViableFunction(*this, OpLoc, B2);
-  if (Best->Function)
-  Best->Function->dump();
-  else
-    llvm::errs()<<"NULL\n";
-    Best=&it->second.cand;
-    Args[0]->dump();
-    Args[1]->dump();
-    key.lhs.dump();
-    key.rhs.dump();
-    llvm::errs()<<"-\n";
-    Best->BuiltinParamTypes[0]->dump();
-    Best->BuiltinParamTypes[1]->dump();
-    if (Best->FoundDecl) Best->FoundDecl->dump(); else llvm::errs()<<"NULL\n";
-    llvm::errs()<<Best->getNumParams()<<"\n";
-    llvm::errs()<<(&Best->Conversions[0])<<"=="<<(&it->second.ICS[0])<<"\n";
-    for (const auto& c:it->second.ICS){
-      c.dump();
-    }
-    for (const auto& c:Best->Conversions){
-      c.dump();
-    }
-        bool all=1;
-        for (const auto& c: Best->Conversions)
-          if (c.hasInitializerListContainerType()){
-            all=0;
-            llvm::errs()<<"HAS";
-            break;
-          }else{
-            //c.dump();
-          }
-    llvm::errs()<<all<<"---\n";
-    B2->BuiltinParamTypes[0]->dump();
-    B2->BuiltinParamTypes[1]->dump();
-    if (B2->FoundDecl) B2->FoundDecl->dump(); else llvm::errs()<<"NULL\n";
-    llvm::errs()<<B2->getNumParams()<<"\n";
-    for (const auto& c:B2->Conversions)
-      c.dump();
-    llvm::errs()<<"---\n";
-    }
   }else {
 #endif
   if (DefaultedFn)
@@ -14864,55 +14819,16 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   // Perform overload resolution.
   ovRes=CandidateSet.BestViableFunction(*this, OpLoc, Best);
 #if CACHE_BIN_OP>0
-  if (it!=cache.end()&&0){
-    assert(ovRes==it->second.res);
-    assert(*Best==it->second.cand);
-    /*if(not(*Best == it->second.cand)){
-      llvm::errs()<<"----1:\n";
-      if (Best->Function)
-        Best->Function->dump();
-      else llvm::errs()<<"NULL\n";
-      llvm::errs()<<"----2:\n";
-      if (it->second.cand.Function)
-      it->second.cand.Function->dump();
-      else llvm::errs()<<"NULL\n";
-      llvm::errs()<<"\n\n\n"<<(Best->Function->getLocation()==it->second.cand.Function->getLocation());
-
-      Best->Function->getLocation().dump(SourceMgr);
-      it->second.cand.Function->getLocation().dump(SourceMgr);
-      Args[1]->dump();
-      Args[1]->getType().dump();
-      it->first.rhs.dump();
-      assert(*Best==it->second.cand);
-    }*/
-    //assert(HadMultipleCandidates==it->second.hadMultipleCandidates);
-    //llvm::errs()<<"CH";
-    p.cacheHits++;
-    Args[0]->dump();
-    Args[1]->dump();
-    //llvm::errs();
-  }else{
-    p.cacheMiss++;
-
-  }
+    if (SourceMgr.isInSystemHeader(OpLoc) ){p.stlMiss++;}
+    else p.cacheMiss++;
   }
 #endif
   switch (ovRes) {
     case OR_Success: {
 #if CACHE_BIN_OP>0
-      if (!cacheHit && !hasInitList){
-        bool all=1;
-        for (const auto& c: Best->Conversions)
-          if (c.hasInitializerListContainerType()){
-            all=0;
-            llvm::errs()<<"HAS";
-            break;
-          }
-        if (all){
+      if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
           cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
     p.cacheSize++;
-          //it2->second.cand.Conversions={new ImplicitConversionSequence[Best->Conversions.size()],Best->Conversions.size()};
-        }
       }
 #endif
       // We found a built-in operator or an overloaded operator.
