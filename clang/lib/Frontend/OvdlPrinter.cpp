@@ -80,7 +80,7 @@ struct BestFunInfo{
     }
     return builtInTypes[0]<o.builtInTypes[0];
   }
-  std::string printToString(const PrintingPolicy &Policy, const Sema* s)const{
+  /*std::string printToString(const PrintingPolicy &Policy, const Sema* s)const{
     std::string res;
     llvm::raw_string_ostream os(res);
     if (!succsess) {
@@ -106,7 +106,7 @@ struct BestFunInfo{
       os<<"; BuiltIn"; 
     }
     return res;
-  }
+  }*/
 
 };
 struct BestFunClass{
