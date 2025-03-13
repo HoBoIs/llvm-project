@@ -34,6 +34,7 @@
 #include "clang/Sema/SemaCUDA.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/OverloadCallback.h"
+#include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateDeduction.h"
@@ -5755,19 +5756,13 @@ TryListConversion(Sema &S, InitListExpr *From, QualType ToType,
   return Result;
 }
 
-/// TryCopyInitialization - Try to copy-initialize a value of type
-/// ToType from the expression From. Return the implicit conversion
-/// sequence required to pass this argument, which may be a bad
-/// conversion sequence (meaning that the argument cannot be passed to
-/// a parameter of this type). If @p SuppressUserConversions, then we
-/// do not permit any user-defined conversion sequences.
 static ImplicitConversionSequence
-TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
+TryCopyInitializationCached(Sema &S, Expr *From, QualType ToType,
                       bool SuppressUserConversions,
                       bool InOverloadResolution,
                       bool AllowObjCWritebackConversion,
                       bool AllowExplicit) {
- /* 
+
   struct Params{
     QualType from,to;
     bool pmrs[4];
@@ -5793,20 +5788,33 @@ TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
   ImplicitConversionSequence res;
   if (f!=cache.end() ){
     res = f->second;
-    if (0 && res.isBad()){
-      res.Bad.FromExpr=From;
-    }//else if (res.isAmbiguous()){
-
-    //}
     return res;
-  }else{*/
+  }else{
+    res=TryCopyInitialization(S, From, ToType, SuppressUserConversions, InOverloadResolution, AllowObjCWritebackConversion);
+    if (!res.isBad()&&!res.isAmbiguous()){
+      cache.insert(f, {p,res});
+    }
+    return res;
+  }
+}
+/// TryCopyInitialization - Try to copy-initialize a value of type
+/// ToType from the expression From. Return the implicit conversion
+/// sequence required to pass this argument, which may be a bad
+/// conversion sequence (meaning that the argument cannot be passed to
+/// a parameter of this type). If @p SuppressUserConversions, then we
+/// do not permit any user-defined conversion sequences.
+static ImplicitConversionSequence
+TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
+                      bool SuppressUserConversions,
+                      bool InOverloadResolution,
+                      bool AllowObjCWritebackConversion,
+                      bool AllowExplicit) {
+
   if (InitListExpr *FromInitList = dyn_cast<InitListExpr>(From))
-      //res = TryListConversion(S, FromInitList, ToType, SuppressUserConversions,
     return TryListConversion(S, FromInitList, ToType, SuppressUserConversions,
                              InOverloadResolution,AllowObjCWritebackConversion);
 
   if (ToType->isReferenceType())
-      //res = TryReferenceInit(S, From, ToType,
     return TryReferenceInit(S, From, ToType,
                             /*FIXME:*/ From->getBeginLoc(),
                             SuppressUserConversions, AllowExplicit);
@@ -5818,11 +5826,6 @@ TryCopyInitialization(Sema &S, Expr *From, QualType ToType,
                                /*CStyle=*/false,
                                AllowObjCWritebackConversion,
                                /*AllowObjCConversionOnExplicit=*/false);
-    /*if (! res.isAmbiguous() && !res.isBad() )
-      cache.insert(f, {p,res});
-      //cache[p]=res;
-    return res;
-  }*/
 }
 
 static bool TryCopyInitialization(const CanQualType FromQTy,
@@ -14920,16 +14923,186 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
           getOperatorSpelling(Op),Args});
     //getOperatorSpelling(Set->getRewriteInfo().OriginalOperator);
   //spelling of Opc
+  OverloadCandidateSet::iterator Best;
+  bool cacheHit=0;
+  OverloadingResult ovRes;
+  bool HadMultipleCandidates;
+#define CACHE_BIN_OP 1
+#if CACHE_BIN_OP>0
+  auto hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
+  struct CacheKey{
+    const QualType lhs,rhs;
+    //const ExprValueKind lk,rk;
+    //const OverloadedOperatorKind Kind; 
+    //const bool AllowRewritten;
+    const int CombinedData;
+    const unsigned int size;
+    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s):
+                          lhs(Args[0]->getType().getCanonicalType()),
+                          rhs(Args[1]->getType().getCanonicalType()),
+                          CombinedData(CanRewrite | 
+                                (Args[0]->getValueKind()<<1) | 
+                                (Args[1]->getValueKind()<<3) |
+                                (K<<5)),
+                          size(s) {
+                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS<std::numeric_limits<int>::max()/(1<<5),"Why do we have this many operators? This in nonsense!");
+                          };
+                          //lk(Args[0]->getValueKind()),
+                          //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
+    bool operator==(const CacheKey& o)const{
+      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && size==o.size;
+      // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
+    }
+  } key{Args,Op,AllowRewrittenCandidates,Fns.size()};
+  struct CacheHash{
+    size_t operator()(const CacheKey& val)const{
+      return size_t (val.lhs.getAsOpaquePtr()) ^
+        (size_t(val.rhs.getAsOpaquePtr()) << 1) ^
+        (size_t(val.CombinedData+(size_t(val.size)<<32)) <<2);
+    };
+  };
+  struct CacheValue{
+    OverloadCandidate cand;
+    llvm::SmallVector<ImplicitConversionSequence,2> ICS;
+    OverloadingResult res;
+    bool hadMultipleCandidates;
+    CacheValue(const OverloadCandidate& c, OverloadingResult r, bool h): 
+        cand(c),
+        ICS(c.Conversions.begin(),c.Conversions.end()),
+        res(r),
+        hadMultipleCandidates(h){
+    }
+  };
+  struct printDS{
+    int cacheHits=0;
+    int cacheMiss=0;
+    int cacheSize=0;
+    int InitLists=0;
+    ~printDS(){llvm::errs()<<cacheSize<<"=cs\n"<<cacheHits<<"=CacheHit\n"<<cacheMiss<<"=CacheMiss\t"<<InitLists<<"=InitLists\n";}
+  };
+  static printDS p;
+  static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
+  auto it=hasInitList ? cache.end(): cache.find(key);
+  p.InitLists+=hasInitList;
+  if (1 && it!=cache.end() && !AllowRewrittenCandidates){
+    ovRes=it->second.res;
+    Best=&it->second.cand;
+    Best->Conversions=it->second.ICS;
+    HadMultipleCandidates=it->second.hadMultipleCandidates;
+    cacheHit=1;
+    p.cacheHits++;
+    if (0 && p.cacheHits==904){
+  if (DefaultedFn)
+    CandidateSet.exclude(DefaultedFn);
+  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
+  llvm::errs()<<"\n\n\n-----------------\n\n\n";
+  if (Best->Function)
+  Best->Function->dump();
+  else
+    llvm::errs()<<"NULL";
+  auto* B2=Best;
+  ovRes=CandidateSet.BestViableFunction(*this, OpLoc, B2);
+  if (Best->Function)
+  Best->Function->dump();
+  else
+    llvm::errs()<<"NULL\n";
+    Best=&it->second.cand;
+    Args[0]->dump();
+    Args[1]->dump();
+    key.lhs.dump();
+    key.rhs.dump();
+    llvm::errs()<<"-\n";
+    Best->BuiltinParamTypes[0]->dump();
+    Best->BuiltinParamTypes[1]->dump();
+    if (Best->FoundDecl) Best->FoundDecl->dump(); else llvm::errs()<<"NULL\n";
+    llvm::errs()<<Best->getNumParams()<<"\n";
+    llvm::errs()<<(&Best->Conversions[0])<<"=="<<(&it->second.ICS[0])<<"\n";
+    for (const auto& c:it->second.ICS){
+      c.dump();
+    }
+    for (const auto& c:Best->Conversions){
+      c.dump();
+    }
+        bool all=1;
+        for (const auto& c: Best->Conversions)
+          if (c.hasInitializerListContainerType()){
+            all=0;
+            llvm::errs()<<"HAS";
+            break;
+          }else{
+            //c.dump();
+          }
+    llvm::errs()<<all<<"---\n";
+    B2->BuiltinParamTypes[0]->dump();
+    B2->BuiltinParamTypes[1]->dump();
+    if (B2->FoundDecl) B2->FoundDecl->dump(); else llvm::errs()<<"NULL\n";
+    llvm::errs()<<B2->getNumParams()<<"\n";
+    for (const auto& c:B2->Conversions)
+      c.dump();
+    llvm::errs()<<"---\n";
+    }
+  }else {
+#endif
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
   LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
 
-  bool HadMultipleCandidates = (CandidateSet.size() > 1);
+  HadMultipleCandidates = (CandidateSet.size() > 1);
 
   // Perform overload resolution.
-  OverloadCandidateSet::iterator Best;
-  switch (CandidateSet.BestViableFunction(*this, OpLoc, Best)) {
+  ovRes=CandidateSet.BestViableFunction(*this, OpLoc, Best);
+#if CACHE_BIN_OP>0
+  if (it!=cache.end()&&0){
+    assert(ovRes==it->second.res);
+    assert(*Best==it->second.cand);
+    /*if(not(*Best == it->second.cand)){
+      llvm::errs()<<"----1:\n";
+      if (Best->Function)
+        Best->Function->dump();
+      else llvm::errs()<<"NULL\n";
+      llvm::errs()<<"----2:\n";
+      if (it->second.cand.Function)
+      it->second.cand.Function->dump();
+      else llvm::errs()<<"NULL\n";
+      llvm::errs()<<"\n\n\n"<<(Best->Function->getLocation()==it->second.cand.Function->getLocation());
+
+      Best->Function->getLocation().dump(SourceMgr);
+      it->second.cand.Function->getLocation().dump(SourceMgr);
+      Args[1]->dump();
+      Args[1]->getType().dump();
+      it->first.rhs.dump();
+      assert(*Best==it->second.cand);
+    }*/
+    //assert(HadMultipleCandidates==it->second.hadMultipleCandidates);
+    //llvm::errs()<<"CH";
+    p.cacheHits++;
+    Args[0]->dump();
+    Args[1]->dump();
+    //llvm::errs();
+  }else{
+    p.cacheMiss++;
+
+  }
+  }
+#endif
+  switch (ovRes) {
     case OR_Success: {
+#if CACHE_BIN_OP>0
+      if (!cacheHit && !hasInitList){
+        bool all=1;
+        for (const auto& c: Best->Conversions)
+          if (c.hasInitializerListContainerType()){
+            all=0;
+            llvm::errs()<<"HAS";
+            break;
+          }
+        if (all){
+          cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
+    p.cacheSize++;
+          //it2->second.cand.Conversions={new ImplicitConversionSequence[Best->Conversions.size()],Best->Conversions.size()};
+        }
+      }
+#endif
       // We found a built-in operator or an overloaded operator.
       FunctionDecl *FnDecl = Best->Function;
 

@@ -1016,6 +1016,11 @@ class Sema;
           HasMatchedPackOnParmToNonPackOnArg(false),
           IsADLCandidate(llvm::to_underlying(CallExpr::NotADL)),
           RewriteKind(CRK_None) {}
+  public:
+    bool operator==(const OverloadCandidate& o)const{
+      //return o.Best==Best && o.IgnoreObjectArgument==IgnoreObjectArgument && o.IsSurrogate==IsSurrogate && o.Viable==Viable && o.IsADLCandidate==IsADLCandidate && IsSurrogate ? o.Surrogate==Surrogate : o.Function==Function;//FIXME: check more arguments
+      return  IsSurrogate ? o.Surrogate==Surrogate :  ((!Function)==(!o.Function)) && (o.Function ? o.Function->getFirstDecl()->getLocation()==Function->getFirstDecl()->getLocation() : true);
+    }
   };
 
   /// OverloadCandidateSet - A set of overload candidates, used in C++
