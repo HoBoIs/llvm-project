@@ -10191,7 +10191,7 @@ isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
 /// if any. Returns std::nullopt if there is no implicit object parameter, and a
 /// null QualType if there is a 'matches anything' implicit object parameter.
 static std::optional<QualType>
-getImplicitObjectParamType(ASTContext &Context, const FunctionDecl *F) {
+getImplicitObjectParamType(const ASTContext &Context, const FunctionDecl *F) {
   if (!isa<CXXMethodDecl>(F) || isa<CXXConstructorDecl>(F))
     return std::nullopt;
 
@@ -10204,7 +10204,7 @@ getImplicitObjectParamType(ASTContext &Context, const FunctionDecl *F) {
 
 // As a Clang extension, allow ambiguity among F1 and F2 if they represent
 // represent the same entity.
-static bool allowAmbiguity(ASTContext &Context, const FunctionDecl *F1,
+static bool allowAmbiguity(const ASTContext &Context, const FunctionDecl *F1,
                            const FunctionDecl *F2) {
   if (declaresSameEntity(F1, F2))
     return true;
@@ -14801,7 +14801,8 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
-  if (it!=cache.end() && !AllowRewrittenCandidates){
+#define isTest 1 
+  if (it!=cache.end() && !isTest ){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
@@ -14828,7 +14829,11 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 #if CACHE_BIN_OP>0
       if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
           cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
-    p.cacheSize++;
+          p.cacheSize++;
+      }else{
+        if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
+          assert(it->second.cand==*Best);
+        }
       }
 #endif
       // We found a built-in operator or an overloaded operator.
@@ -14889,6 +14894,12 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
           }
 
           if (!AmbiguousWith.empty()) {
+#if CACHE_BIN_OP>0
+            if (!cacheHit && !hasInitList){
+              cache.erase(it);
+              p.cacheSize--;
+            }
+#endif
             bool AmbiguousWithSelf =
                 AmbiguousWith.size() == 1 &&
                 declaresSameEntity(AmbiguousWith.front(), FnDecl);
