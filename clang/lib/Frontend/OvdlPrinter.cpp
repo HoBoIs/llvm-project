@@ -905,7 +905,7 @@ CALLGRIND_TOGGLE_COLLECT;
       printHumanReadable();
     }
     cont = {};
-    if (settings.measureTime & 2)
+    if (settings.measureTime & 2){
       for (const auto& [k,v]:timeMap){
         llvm::outs()<<k<<": \tcount:\t"<<v.cnt<<"\t overload time:\t"<<getTimeOf(v.Time)<<"s\t from this in children: \t"<< getTimeOf(v.childTime) <<"s\n";
       }
@@ -1030,7 +1030,7 @@ CALLGRIND_TOGGLE_COLLECT;
     if (!timeStack.empty() && timeStack.back().ocs== Set){
       if (ovRes==clang::OR_Success){
         //HERE
-        timeStack.back().bestFun={BestOrProblem->Function,{BestOrProblem->BuiltinParamTypes[0],BestOrProblem->BuiltinParamTypes[1]},loc,true,BestOrProblem->IsSurrogate};
+        timeStack.back().bestFun={BestOrProblem->Function,{BestOrProblem->BuiltinParamTypes[0],BestOrProblem->BuiltinParamTypes[1]},loc,true,bool(BestOrProblem->IsSurrogate)};
       }
     }
 
@@ -1616,7 +1616,7 @@ private:
       return {};
     case ovl_fail_bad_deduction:
       return str::toString(
-          Sema::TemplateDeductionResult(C.DeductionFailure.Result));
+          TemplateDeductionResult(C.DeductionFailure.Result));
     case ovl_fail_trivial_conversion:
     case ovl_fail_illegal_constructor:
     case ovl_fail_bad_final_conversion:
@@ -1852,7 +1852,7 @@ private:
   OvInsCandEntry getCandEntry(const OverloadCandidate &C) const {
     OvInsCandEntry res;
     res.isBestOrProblem = C.Best;
-    res.isADL=C.IsADLCandidate==clang::CallExpr::ADLCallKind::UsesADL;
+    res.isADL=CallExpr::ADLCallKind(C.IsADLCandidate)==clang::CallExpr::ADLCallKind::UsesADL;
     llvm::raw_string_ostream usingLoc(res.usingLocation);
     if (settings.ShowConversions) {
       res.Conversions = getConversions(C); // FIXME
@@ -2055,7 +2055,7 @@ private:
                     ->asArray()[i]
                     ->getNameAsString()
              << " = ";
-          templateArgs->data()[i].dump(os);
+          //templateArgs->data()[i].dump(os);
         }
     return res;
   };

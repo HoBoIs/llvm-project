@@ -72,31 +72,31 @@ std::string toString(clang::OverloadingResult r){
   }
   llvm_unreachable("Unknown OR");
 }
-std::string toString(Sema::TemplateDeductionResult r){
+std::string toString(TemplateDeductionResult r){
   switch (r) {
-  case Sema::TDK_Success: return "TDK_Success";
-  case Sema::TDK_Invalid: return "TDK_Invalid";
-  case Sema::TDK_InstantiationDepth: return "TDK_InstantiationDepth";
-  case Sema::TDK_Incomplete: return "TDK_Incomplete";
-  case Sema::TDK_IncompletePack: return "TDK_IncompletePack";
-  case Sema::TDK_Inconsistent: return "TDK_Inconsistent";
-  case Sema::TDK_Underqualified: return "TDK_Underqualified";
-  case Sema::TDK_SubstitutionFailure: return "TDK_SubstitutionFailure";
-  case Sema::TDK_DeducedMismatch: return "TDK_DeducedMismatch";
-  case Sema::TDK_DeducedMismatchNested: return "TDK_DeducedMismatchNested";
-  case Sema::TDK_NonDeducedMismatch: return "TDK_NonDeducedMismatch";
-  case Sema::TDK_TooManyArguments: return "TDK_TooManyArguments";
-  case Sema::TDK_TooFewArguments: return "TDK_TooFewArguments";
-  case Sema::TDK_InvalidExplicitArguments:
+  case TemplateDeductionResult::Success: return "TDK_Success";
+  case TemplateDeductionResult::Invalid: return "TDK_Invalid";
+  case TemplateDeductionResult::InstantiationDepth: return "TDK_InstantiationDepth";
+  case TemplateDeductionResult::Incomplete: return "TDK_Incomplete";
+  case TemplateDeductionResult::IncompletePack: return "TDK_IncompletePack";
+  case TemplateDeductionResult::Inconsistent: return "TDK_Inconsistent";
+  case TemplateDeductionResult::Underqualified: return "TDK_Underqualified";
+  case TemplateDeductionResult::SubstitutionFailure: return "TDK_SubstitutionFailure";
+  case TemplateDeductionResult::DeducedMismatch: return "TDK_DeducedMismatch";
+  case TemplateDeductionResult::DeducedMismatchNested: return "TDK_DeducedMismatchNested";
+  case TemplateDeductionResult::NonDeducedMismatch: return "TDK_NonDeducedMismatch";
+  case TemplateDeductionResult::TooManyArguments: return "TDK_TooManyArguments";
+  case TemplateDeductionResult::TooFewArguments: return "TDK_TooFewArguments";
+  case TemplateDeductionResult::InvalidExplicitArguments:
     return "TDK_InvalidExplicitArguments";
-  case Sema::TDK_NonDependentConversionFailure:
+  case TemplateDeductionResult::NonDependentConversionFailure:
     return "TDK_NonDependentConversionFailure";
-  case Sema::TDK_ConstraintsNotSatisfied:
+  case TemplateDeductionResult::ConstraintsNotSatisfied:
     return "TDK_ConstraintsNotSatisfied";
-  case Sema::TDK_MiscellaneousDeductionFailure:
+  case TemplateDeductionResult::MiscellaneousDeductionFailure:
     return "TDK_MiscellaneousDeductionFailure";
-  case Sema::TDK_CUDATargetMismatch: return "TDK_CUDATargetMismatch";
-  case Sema::TDK_AlreadyDiagnosed: return "TDK_AlreadyDiagnosed";
+  case TemplateDeductionResult::CUDATargetMismatch: return "TDK_CUDATargetMismatch";
+  case TemplateDeductionResult::AlreadyDiagnosed: return "TDK_AlreadyDiagnosed";
   }
 llvm_unreachable("unknown TemplateDeductionResult");
 }
@@ -118,6 +118,18 @@ std::string toString(ImplicitConversionRank e){
     return "C Only";
   case ICR_C_Conversion_Extension:
     return "Not standard";
+  case ICR_HLSL_Scalar_Widening:
+    return "Scalar widenning";
+  case ICR_HLSL_Scalar_Widening_Promotion:
+    return "Scalar promotion";
+  case ICR_HLSL_Scalar_Widening_Conversion:
+    return "Scalar widenning conversion";
+  case ICR_HLSL_Dimension_Reduction:
+    return "Dimension reduction";
+  case ICR_HLSL_Dimension_Reduction_Promotion:
+    return "Dimension reduction promotion";
+  case ICR_HLSL_Dimension_Reduction_Conversion:
+    return "Dimension reduction conversion";
   }
 llvm_unreachable("unknown enum");
 }

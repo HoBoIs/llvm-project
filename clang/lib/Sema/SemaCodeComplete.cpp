@@ -6377,7 +6377,7 @@ SemaCodeCompletion::ProduceCallSignatureHelp(Expr *Fn, ArrayRef<Expr *> Args,
   Expr *NakedFn = Fn->IgnoreParenCasts();
   // Build an overload candidate set based on the functions we find.
   SourceLocation Loc = Fn->getExprLoc();
-  OverloadCandidateSet CandidateSet(*this,Loc, OverloadCandidateSet::CSK_Normal);
+  OverloadCandidateSet CandidateSet(SemaRef ,Loc, OverloadCandidateSet::CSK_Normal);
 
   if (auto ULE = dyn_cast<UnresolvedLookupExpr>(NakedFn)) {
     SemaRef.AddOverloadedCallCandidates(ULE, ArgsWithoutDependentTypes,

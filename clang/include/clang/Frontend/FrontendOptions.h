@@ -590,13 +590,9 @@ public:
   /// Path which stores the output files for -ftime-trace
   std::string TimeTracePath;
 
-<<<<<<< HEAD
   /// Output Path for module output file.
   std::string ModuleOutputPath;
-  enum OvdlLevelEnum{
-=======
   enum OvInsLevelEnum{
->>>>>>> 857a28b8d1a5 (Support for compile and measure at the same time)
     SC_Hide=0,
     SC_Normal,
     SC_Verbose

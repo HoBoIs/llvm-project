@@ -5679,14 +5679,10 @@ static TemplateDeductionResult FinishTemplateArgumentDeduction(
 
 /// Determine whether the function template \p FT1 is at least as
 /// specialized as \p FT2.
-static bool isAtLeastAsSpecializedAs(Sema &S, SourceLocation Loc,
-                                     const FunctionTemplateDecl *FT1,
-                                     const FunctionTemplateDecl *FT2,
-                                     TemplatePartialOrderingContext TPOC,
-                                     bool Reversed,
-                                     const SmallVector<QualType> &Args1,
-                                     const SmallVector<QualType> &Args2) {
-  assert(!Reversed || TPOC == TPOC_Call);
+static bool isAtLeastAsSpecializedAs(
+    Sema &S, SourceLocation Loc, FunctionTemplateDecl *FT1,
+    FunctionTemplateDecl *FT2, TemplatePartialOrderingContext TPOC,
+    ArrayRef<QualType> Args1, ArrayRef<QualType> Args2, bool Args1Offset) {
 
   FunctionDecl *FD1 = FT1->getTemplatedDecl();
   FunctionDecl *FD2 = FT2->getTemplatedDecl();

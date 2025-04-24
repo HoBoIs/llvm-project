@@ -10919,8 +10919,8 @@ bool clang::isBetterOverloadCandidate(
   // to determine which is better.
   if (S.getLangOpts().CUDA && Cand1.Function && Cand2.Function) {
     FunctionDecl *Caller = S.getCurFunctionDecl(/*AllowLambda=*/true);
-    bool res=S.IdentifyCUDAPreference(Caller, Cand1.Function) >
-           S.IdentifyCUDAPreference(Caller, Cand2.Function);
+    bool res=S.CUDA().IdentifyPreference(Caller, Cand1.Function) >
+           S.CUDA().IdentifyPreference(Caller, Cand2.Function);
     if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))
       atCompareOverloadEnd(S.OverloadInspectionCallbacks,S,Loc,Cand1,Cand2,res,CUDApreference);
     return res;
@@ -10936,12 +10936,12 @@ bool clang::isBetterOverloadCandidate(
     LangAS AS1 = CD1->getMethodQualifiers().getAddressSpace();
     LangAS AS2 = CD2->getMethodQualifiers().getAddressSpace();
     if (AS1 != AS2) {
-      if (Qualifiers::isAddressSpaceSupersetOf(AS2, AS1)){
+      if (Qualifiers::isAddressSpaceSupersetOf(AS2, AS1, S.getASTContext())){
   	    if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))
     	    atCompareOverloadEnd(S.OverloadInspectionCallbacks,S,Loc,Cand1,Cand2,true,addressSpace);
         return true;
       }
-      if (Qualifiers::isAddressSpaceSupersetOf(AS1, AS2)){
+      if (Qualifiers::isAddressSpaceSupersetOf(AS1, AS2, S.getASTContext())){
       	if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))
         	atCompareOverloadEnd(S.OverloadInspectionCallbacks,S,Loc,Cand1,Cand2,false,addressSpace);
         return false;
@@ -14989,7 +14989,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
-#define isTest 1 
+#define isTest 0 
   if (it!=cache.end() && !isTest ){
     ovRes=it->second.res;
     Best=&it->second.cand;
@@ -15015,9 +15015,11 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   switch (ovRes) {
     case OR_Success: {
 #if CACHE_BIN_OP>0
+      bool cachedNow=false;
       if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
           cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
           p.cacheSize++;
+          cachedNow=true;
       }else{
         if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
           assert(it->second.cand==*Best);
@@ -15083,7 +15085,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 
           if (!AmbiguousWith.empty()) {
 #if CACHE_BIN_OP>0
-            if (!cacheHit && !hasInitList){
+            if (!cachedNow){
               cache.erase(it);
               p.cacheSize--;
             }

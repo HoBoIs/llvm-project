@@ -88,7 +88,7 @@ std::string toString(clang::BetterOverloadCandidateReason r);
 std::string toString(clang::OverloadFailureKind r);
 std::string toString(clang::OverloadCandidateRewriteKind r);
 std::string toString(clang::OverloadingResult r);
-std::string toString(clang::Sema::TemplateDeductionResult r);
+std::string toString(clang::TemplateDeductionResult r);
 std::string toString(clang::ImplicitConversionSequence::Kind k);
 std::string toString(clang::BadConversionSequence::FailureKind k);
 

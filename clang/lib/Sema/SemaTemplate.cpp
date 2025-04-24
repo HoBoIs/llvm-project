@@ -10403,8 +10403,9 @@ DeclResult Sema::ActOnExplicitInstantiation(Scope *S,
   //  instantiated from the member definition associated with its class
   //  template.
   UnresolvedSet<8> TemplateMatches;
-  OverloadCandidateSet NonTemplateMatches(D.getBeginLoc(),
+  OverloadCandidateSet NonTemplateMatches(*this,D.getBeginLoc(),
                                           OverloadCandidateSet::CSK_Normal);
+  //TODO HERE START MEASURE?
   TemplateSpecCandidateSet FailedTemplateCandidates(D.getIdentifierLoc());
   for (LookupResult::iterator P = Previous.begin(), PEnd = Previous.end();
        P != PEnd; ++P) {
