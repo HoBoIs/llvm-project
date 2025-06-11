@@ -10203,13 +10203,10 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
   }
 }
 
-void
-Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
-                                           SourceLocation Loc,
-                                           ArrayRef<Expr *> Args,
-                                 TemplateArgumentListInfo *ExplicitTemplateArgs,
-                                           OverloadCandidateSet& CandidateSet,
-                                           bool PartialOverloading) {
+static ADLResult getADLLookupRaw(const DeclarationName& Name,
+                                 const SourceLocation& Loc,
+                                 ArrayRef<Expr *> Args,
+                                 Sema& S){
   ADLResult Fns;
 //ADL here!!!
   // FIXME: This approach for uniquing ADL results (and removing
@@ -10220,7 +10217,31 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
   // we supposed to consider on ADL candidates, anyway?
 
   // FIXME: Pass in the explicit template arguments?
-  ArgumentDependentLookup(Name, Loc, Args, Fns);
+  S.ArgumentDependentLookup(Name, Loc, Args, Fns);
+  return Fns;
+}
+
+void
+Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
+                                           SourceLocation Loc,
+                                           ArrayRef<Expr *> Args,
+                                 TemplateArgumentListInfo *ExplicitTemplateArgs,
+                                           OverloadCandidateSet& CandidateSet,
+                                           ADLResult Fns,
+                                           bool PartialOverloading) {
+  //ADLResult Fns(getADLLookupRaw(Name, Loc, Args, *this));
+  /*
+  ADLResult Fns;
+//ADL here!!!
+  // FIXME: This approach for uniquing ADL results (and removing
+  // redundant candidates from the set) relies on pointer-equality,
+  // which means we need to key off the canonical decl.  However,
+  // always going back to the canonical decl might not get us the
+  // right set of default arguments.  What default arguments are
+  // we supposed to consider on ADL candidates, anyway?
+
+  // FIXME: Pass in the explicit template arguments?
+  ArgumentDependentLookup(Name, Loc, Args, Fns);*/
 
   // Erase all of the candidates we already knew about.
   for (OverloadCandidateSet::iterator Cand = CandidateSet.begin(),
@@ -13933,7 +13954,8 @@ void Sema::AddOverloadedCallCandidates(UnresolvedLookupExpr *ULE,
   if (ULE->requiresADL())
     AddArgumentDependentLookupCandidates(ULE->getName(), ULE->getExprLoc(),
                                          Args, ExplicitTemplateArgs,
-                                         CandidateSet, PartialOverloading);
+                                         CandidateSet,
+                                         getADLLookupRaw(ULE->getName(), ULE->getExprLoc(), Args, *this), PartialOverloading);
 }
 
 void Sema::AddOverloadedCallCandidates(
@@ -14638,7 +14660,7 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
   if (PerformADL) {
     AddArgumentDependentLookupCandidates(OpName, OpLoc, ArgsArray,
                                          /*ExplicitTemplateArgs*/nullptr,
-                                         CandidateSet);
+                                         CandidateSet,getADLLookupRaw(OpName, OpLoc, ArgsArray, *this));
   }
 
   // Add builtin operator candidates.
@@ -14774,7 +14796,8 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
 void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
                                  OverloadedOperatorKind Op,
                                  const UnresolvedSetImpl &Fns,
-                                 ArrayRef<Expr *> Args, bool PerformADL) {
+                                 ArrayRef<Expr *> Args, bool PerformADL,
+                                 ADLResult* Fns1, ADLResult* Fns2) {
   SourceLocation OpLoc = CandidateSet.getLocation();
 
   OverloadedOperatorKind ExtraOp =
@@ -14808,13 +14831,13 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
     DeclarationName OpName = Context.DeclarationNames.getCXXOperatorName(Op);
     AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
                                          /*ExplicitTemplateArgs*/ nullptr,
-                                         CandidateSet);
+                                         CandidateSet, Fns1?std::move(*Fns1):getADLLookupRaw(OpName, OpLoc, Args, *this));
     if (ExtraOp) {
       DeclarationName ExtraOpName =
           Context.DeclarationNames.getCXXOperatorName(ExtraOp);
       AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
                                            /*ExplicitTemplateArgs*/ nullptr,
-                                           CandidateSet);
+                                           CandidateSet, Fns2?std::move(*Fns2):getADLLookupRaw(ExtraOpName, OpLoc, Args, *this));
     }
   }
 
@@ -14927,8 +14950,9 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   bool cacheHit=0;
   OverloadingResult ovRes;
   bool HadMultipleCandidates;
-#define CACHE_BIN_OP 1
-#if CACHE_BIN_OP>0
+//#define CACHE_BIN_OP 1
+#if CACHE_BIN_OP>0 
+  ADLResult Fns1,Fns2;
   auto hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
   struct CacheKey{
     const QualType lhs,rhs;
@@ -14936,21 +14960,25 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     //const OverloadedOperatorKind Kind; 
     //const bool AllowRewritten;
     const int CombinedData;
-    const unsigned int size;
-    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s):
+    const unsigned int size,AdlSize;
+    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS):
                           lhs(Args[0]->getType().getCanonicalType()),
                           rhs(Args[1]->getType().getCanonicalType()),
                           CombinedData(CanRewrite | 
                                 (Args[0]->getValueKind()<<1) | 
                                 (Args[1]->getValueKind()<<3) |
-                                (K<<5)),
-                          size(s) {
-                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS<std::numeric_limits<int>::max()/(1<<5),"Why do we have this many operators? This in nonsense!");
+                                ((lhs->getAsCXXRecordDecl()&&lhs->getAsCXXRecordDecl()->hasDefinition())<<5)|
+                                ((CanRewrite &&
+                                 rhs->getAsCXXRecordDecl()&&rhs->getAsCXXRecordDecl()->hasDefinition())<<6)|
+                                (K<<7)),
+                          size(s),AdlSize(AdlS) {
+                            //lhs->getAsCXXRecordDecl()->methods().begin()-lhs->getAsCXXRecordDecl()->methods().begin();
+                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS<std::numeric_limits<int>::max()/(1<<7),"Why do we have this many operators? This in nonsense!");
                           };
                           //lk(Args[0]->getValueKind()),
                           //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
     bool operator==(const CacheKey& o)const{
-      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && size==o.size;
+      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && size==o.size && AdlSize==o.AdlSize;
       // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
     }
   };
@@ -14973,6 +15001,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
         hadMultipleCandidates(h){
     }
   };
+#ifdef PRINTSTAT
   struct printDS{
     int cacheHits=0;
     int cacheMiss=0;
@@ -14983,21 +15012,41 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   };
   static printDS p;
   p.InitLists+=hasInitList;
+#endif
   static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
   auto it=  cache.end();
-  CacheKey key{Args,Op,AllowRewrittenCandidates,Fns.size()};
+  auto OpName=Context.DeclarationNames.getCXXOperatorName(Op);
+  Fns1=getADLLookupRaw(OpName, OpLoc, Args, *this);
+
+  OverloadedOperatorKind ExtraOp =
+      CandidateSet.getRewriteInfo().AllowRewrittenCandidates
+          ? getRewrittenOverloadedOperator(Op)
+          : OO_None;
+  if (ExtraOp) {
+
+      DeclarationName ExtraOpName =
+          Context.DeclarationNames.getCXXOperatorName(ExtraOp);
+      //DeclarationName ExtraOpName =
+    Fns2=getADLLookupRaw(ExtraOpName, OpLoc, Args, *this);
+  }
+  CacheKey key{Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size()};
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
-#define isTest 0 
+#define isTest 1 
   if (it!=cache.end() && !isTest ){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
     HadMultipleCandidates=it->second.hadMultipleCandidates;
     cacheHit=1;
+#ifdef PRINTSTAT
     p.cacheHits++;
+#endif
   }else {
+    if (it!=cache.end() && isTest ){
+      cacheHit=1;
+    }
 #endif
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
@@ -15008,8 +15057,10 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   // Perform overload resolution.
   ovRes=CandidateSet.BestViableFunction(*this, OpLoc, Best);
 #if CACHE_BIN_OP>0
+#ifdef PRINTSTAT
     if (SourceMgr.isInSystemHeader(OpLoc) ){p.stlMiss++;}
     else p.cacheMiss++;
+#endif
   }
 #endif
   switch (ovRes) {
@@ -15018,7 +15069,9 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
       bool cachedNow=false;
       if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
           cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
+#ifdef PRINTSTAT
           p.cacheSize++;
+#endif
           cachedNow=true;
       }else{
         if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
@@ -15087,7 +15140,9 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 #if CACHE_BIN_OP>0
             if (!cachedNow){
               cache.erase(it);
+#ifdef PRINTSTAT
               p.cacheSize--;
+#endif
             }
 #endif
             bool AmbiguousWithSelf =

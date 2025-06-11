@@ -2306,6 +2306,10 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   } else if (const auto *DAE =
                  dyn_cast_if_present<CXXDefaultArgExpr>(DefaultExpr)) {
     Loc = DAE->getUsedLocation();
+    if (Loc.isInvalid()) {
+      llvm::errs()<<"P2*:";
+      Loc=getLocation();
+    }
     Context = DAE->getUsedContext();
   } else {
     Loc = getLocation();

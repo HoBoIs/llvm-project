@@ -878,6 +878,9 @@ private:
   };
 
 public:
+  std::size_t size()const{
+    return Decls.size();
+  }
   /// Adds a new ADL candidate to this map.
   void insert(NamedDecl *D);
 

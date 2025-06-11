@@ -10333,7 +10333,7 @@ public:
   void AddArgumentDependentLookupCandidates(
       DeclarationName Name, SourceLocation Loc, ArrayRef<Expr *> Args,
       TemplateArgumentListInfo *ExplicitTemplateArgs,
-      OverloadCandidateSet &CandidateSet, bool PartialOverloading = false);
+      OverloadCandidateSet &CandidateSet, ADLResult Fns, bool PartialOverloading = false);
 
   /// Check the enable_if expressions on the given function. Returns the first
   /// failing attribute, or NULL if they were all successful.
@@ -10551,7 +10551,8 @@ public:
   void LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
                              OverloadedOperatorKind Op,
                              const UnresolvedSetImpl &Fns,
-                             ArrayRef<Expr *> Args, bool RequiresADL = true);
+                             ArrayRef<Expr *> Args, bool RequiresADL = true, 
+                             ADLResult* Fns1=nullptr, ADLResult* Fns2=nullptr);
 
   /// Create a binary operation that may resolve to an overloaded
   /// operator.

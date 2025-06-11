@@ -54,7 +54,8 @@ std::string printType(const QualType& t){
   return t.getAsString(pp);
 }
 double getTimeOf(const llvm::TimeRecord& tr){
-  return tr.getWallTime();
+  //return tr.getWallTime();
+  return tr.getProcessTime();
 }
 
 struct BestFunInfo{
@@ -220,19 +221,19 @@ struct sumTimeInfo{
   llvm::TimeRecord topLevelTime;
   int cnt=0;
   int topLevelCnt=0;
-  std::map<BestFunInfo, timePartInfo> M;
+  //std::map<BestFunInfo, timePartInfo> M;
   //llvm::DenseMap<BestFunInfo, timePartInfo> M;
   sumTimeInfo& operator+=(const timeInfo& ti){
     Time += ti.Time;
     TimeBef += ti.TimeBef;
     childTime += ti.childTime;
     ++cnt;
-    auto it=M.find(ti.bestFun);
-    if (it==M.end()){
+    //auto it=M.find(ti.bestFun);
+   /* if (it==M.end()){
       M.insert({ti.bestFun,ti});
     }else{
       it->second+=ti;
-    }
+    }*/
     //TODO top level time and info for subnodes
     return *this;
   }
@@ -244,7 +245,7 @@ struct sumTimeInfoData{
   int cnt=0,topLevelCnt=0;
   std::string name;
   //llvm::DenseMap<FunctionDecl*, timePartInfo> subParts;
-  std::vector<std::pair<std::string, timePartInfo>> subParts;
+  //std::vector<std::pair<std::string, timePartInfo>> subParts;
   sumTimeInfoData()=default;
   sumTimeInfoData(sumTimeInfoData&&)=default;
   sumTimeInfoData(const sumTimeInfoData&)=default;
@@ -258,7 +259,7 @@ struct sumTimeInfoData{
     topLevelCnt(t.topLevelCnt), name(n) {
           PrintingPolicy pp=s->getLangOpts();
           pp.adjustForCPlusPlus();
-    for (const auto& [k,v]: t.M){
+    //for (const auto& [k,v]: t.M){
       /*std::string tps;
       if (k){
         if (auto* m=dyn_cast<CXXMethodDecl>(k)){
@@ -276,8 +277,8 @@ struct sumTimeInfoData{
       }else{
         subParts.emplace_back(tps+";\tBuilt in",v);
       }*/
-      subParts.emplace_back(BestFunClass(k,s->getSourceManager()).printToString(),v);
-    }
+      //subParts.emplace_back(BestFunClass(k,s->getSourceManager()).printToString(),v);
+    //}
   }
   sumTimeInfoData(const llvm::TimeRecord& t, const std::string& n):
     time(getTimeOf(t)),
@@ -447,7 +448,7 @@ template <> struct MappingTraits<sumTimeInfoData> {
     io.mapRequired("top-level-time",fields.topLevelTime);
     io.mapRequired("top-level-count",fields.topLevelCnt);
 
-    io.mapRequired("subParts",fields.subParts);
+//    io.mapRequired("subParts",fields.subParts);
   }
 };
 template <> struct MappingTraits<std::pair<std::string,timePartInfo>> {
@@ -827,8 +828,8 @@ CALLGRIND_TOGGLE_COLLECT;
           timeMap[timeStack.back().name].topLevelCnt++; 
           timeMap[timeStack.back().name].topLevelTime+=timeStack.back().Time; 
           
-          timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelTime+=getTimeOf(timeStack.back().Time);
-          timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelCnt++;
+          //timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelTime+=getTimeOf(timeStack.back().Time);
+          //timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelCnt++;
         }
       }else{
         /*llvm::errs()<<timeStack.back().name<<" \t";
@@ -892,12 +893,12 @@ CALLGRIND_TOGGLE_COLLECT;
         displaySumTimeInfoData(osref, pt);
 
       }
-      osref << "...\n";
       cont = {};
+      /*osref << "...\n";
       for (const auto& [k,v]:timeMap){
         osref<<k<<": \t"<<v.cnt<<"\t "<<v.Time.getWallTime()<<"\t "<< v.childTime.getWallTime() <<"\n";
-      }
-      timeMap={};
+      }*/
+      //timeMap={};
       outStream->flush();
       //llvm::errs()<<"YAML printed to "<<name<<"\n ";
     } else {
@@ -906,10 +907,10 @@ CALLGRIND_TOGGLE_COLLECT;
     }
     cont = {};
     if (settings.measureTime & 2){
-      for (const auto& [k,v]:timeMap){
+      /*for (const auto& [k,v]:timeMap){
         llvm::outs()<<k<<": \tcount:\t"<<v.cnt<<"\t overload time:\t"<<getTimeOf(v.Time)<<"s\t from this in children: \t"<< getTimeOf(v.childTime) <<"s\n";
       }
-      timeMap={};
+      timeMap={};*/
     }
   }
   virtual void atOverloadBegin(const Sema &s, const SourceLocation &loc,
