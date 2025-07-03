@@ -14857,6 +14857,23 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
   AddBuiltinOperatorCandidates(Op, OpLoc, Args, CandidateSet);
 }
 
+static NamedDecl* getFirstRewritten(const UnresolvedSetImpl &Fns,DeclarationName rewritenOp){
+  if (rewritenOp.isEmpty())return nullptr;
+  unsigned fst=0;
+  unsigned lst=Fns.size();
+  if (lst==0) return nullptr;
+  if (Fns[lst-1]->getDeclName()!=rewritenOp) return nullptr;
+  while (fst+1 != lst){
+    unsigned mid=(fst+lst)/2;
+    if (Fns[mid]->getDeclName() == rewritenOp)
+      fst=mid;
+    else 
+      lst=mid;
+  }
+  //return Fns[fst]->getAsFunction();
+  return Fns[fst];
+};
+
 ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                                        BinaryOperatorKind Opc,
                                        const UnresolvedSetImpl &Fns, Expr *LHS,
@@ -14961,7 +14978,8 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     //const bool AllowRewritten;
     const int CombinedData;
     const unsigned int size,AdlSize;
-    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS):
+    const NamedDecl* fst, *fstRewriten;
+    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS,const UnresolvedSetImpl& Fns,DeclarationName rewritenOp):
                           lhs(Args[0]->getType().getCanonicalType()),
                           rhs(Args[1]->getType().getCanonicalType()),
                           CombinedData(CanRewrite | 
@@ -14971,14 +14989,16 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                                 ((CanRewrite &&
                                  rhs->getAsCXXRecordDecl()&&rhs->getAsCXXRecordDecl()->hasDefinition())<<6)|
                                 (K<<7)),
-                          size(s),AdlSize(AdlS) {
+                          size(s),AdlSize(AdlS),
+                          fst(Fns.size()?(NamedDecl*)Fns[0]:nullptr),fstRewriten(getFirstRewritten(Fns, rewritenOp)){
                             //lhs->getAsCXXRecordDecl()->methods().begin()-lhs->getAsCXXRecordDecl()->methods().begin();
-                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS<std::numeric_limits<int>::max()/(1<<7),"Why do we have this many operators? This in nonsense!");
+                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS < std::numeric_limits<int>::max()/(1<<7),"Why do we have this many operators? This in nonsense!");
                           };
                           //lk(Args[0]->getValueKind()),
                           //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
     bool operator==(const CacheKey& o)const{
-      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && size==o.size && AdlSize==o.AdlSize;
+      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && 
+             size==o.size && AdlSize==o.AdlSize && fst==o.fst && fstRewriten==o.fstRewriten;
       // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
     }
   };
@@ -15001,6 +15021,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
         hadMultipleCandidates(h){
     }
   };
+//#define PRINTSTAT
 #ifdef PRINTSTAT
   struct printDS{
     int cacheHits=0;
@@ -15016,20 +15037,24 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
   auto it=  cache.end();
   auto OpName=Context.DeclarationNames.getCXXOperatorName(Op);
-  Fns1=getADLLookupRaw(OpName, OpLoc, Args, *this);
+  DeclarationName ExtraOpName;
+  //if (const auto* T1=Args[0]->getType()->getAs<RecordType>())
+  //  if (!T1->isBeingDefined())
+  if (Op != OO_Equal && PerformADL) {
+    Fns1 = getADLLookupRaw(OpName, OpLoc, Args, *this);
 
-  OverloadedOperatorKind ExtraOp =
+    OverloadedOperatorKind ExtraOp =
       CandidateSet.getRewriteInfo().AllowRewrittenCandidates
           ? getRewrittenOverloadedOperator(Op)
           : OO_None;
-  if (ExtraOp) {
-
-      DeclarationName ExtraOpName =
+    if (ExtraOp) {
+      ExtraOpName =
           Context.DeclarationNames.getCXXOperatorName(ExtraOp);
       //DeclarationName ExtraOpName =
-    Fns2=getADLLookupRaw(ExtraOpName, OpLoc, Args, *this);
+      Fns2=getADLLookupRaw(ExtraOpName, OpLoc, Args, *this);
+    }
   }
-  CacheKey key{Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size()};
+  CacheKey key(Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size(),Fns,ExtraOpName);
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
@@ -15050,7 +15075,11 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 #endif
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
-  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL);
+  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL
+#if CACHE_BIN_OP>0 
+      ,&Fns1,&Fns2
+#endif
+      );
 
   HadMultipleCandidates = (CandidateSet.size() > 1);
 
