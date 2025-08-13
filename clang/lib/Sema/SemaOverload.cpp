@@ -15058,7 +15058,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
-#define isTest 1 
+#define isTest 0 
   if (it!=cache.end() && !isTest ){
     ovRes=it->second.res;
     Best=&it->second.cand;
