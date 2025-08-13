@@ -14967,7 +14967,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   bool cacheHit=0;
   OverloadingResult ovRes;
   bool HadMultipleCandidates;
-//#define CACHE_BIN_OP 1
+#define CACHE_BIN_OP 1
 #if CACHE_BIN_OP>0 
   ADLResult Fns1,Fns2;
   auto hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
@@ -15021,19 +15021,6 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
         hadMultipleCandidates(h){
     }
   };
-//#define PRINTSTAT
-#ifdef PRINTSTAT
-  struct printDS{
-    int cacheHits=0;
-    int cacheMiss=0;
-    int cacheSize=0;
-    int stlMiss=0;
-    int InitLists=0;
-    ~printDS(){llvm::errs()<<cacheSize<<"=cs\n"<<cacheHits<<"=CacheHit\n"<<cacheMiss<<"=CacheMiss\t"<<stlMiss<<"=stlmiss\t"<<InitLists<<"=InitLists\n";}
-  };
-  static printDS p;
-  p.InitLists+=hasInitList;
-#endif
   static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
   auto it=  cache.end();
   auto OpName=Context.DeclarationNames.getCXXOperatorName(Op);

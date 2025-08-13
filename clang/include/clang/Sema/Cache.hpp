@@ -51,16 +51,34 @@ class Cache{
   };
   struct Validation{
     const NamedDecl* fst, *fstRewriten;
+    bool operator==(const Validation& o)const{
+      return fst==o.fst && fstRewriten==o.fstRewriten;
+    }
   };
+  Value lastVal;
   std::unordered_map<Key, std::pair<Validation,Value>> mp;
   public:
-  bool compute(OverloadCandidateSet& OCs, Sema& S,const Key& key){
+  template<class Fun>
+  Value& compute(const Fun& fun,const Key& key, const Validation& v){
     auto it=mp.find(key);
-    if (it==mp.end()){
-
-    }else {
-    
+    if (it!=mp.end()){
+      if (v==it->second.first){
+        return it->second.second;
+      }
+      lastVal=fun();
+      if (lastVal.res==OR_Success){
+        it->second.first=v;
+        it->second.second=std::move(lastVal);
+        return it->second.second;
+      }
+      return lastVal;
     }
+    lastVal=fun();
+    if (lastVal.res==OR_Success){
+      it=mp.insert(it,{key,std::move(std::pair{v,std::move(lastVal)})});
+      return it->second.second;
+    }
+    return lastVal;
   }
 };
 } // namespace clang
