@@ -48,7 +48,7 @@ std::string printType(const QualType& t){
   if (auto *InjTy = t->getAs<InjectedClassNameType>()) {
     InjTy->getDecl()->printName(OS, pp);
     return res;
-  } 
+  }
   //return t->getTypeClassName();
   //return t.getDecl()->printName();
   return t.getAsString(pp);
@@ -104,7 +104,7 @@ struct BestFunInfo{
       builtInTypes[0].print(os, Policy);
       os<<" ";
       builtInTypes[1].print(os, Policy);
-      os<<"; BuiltIn"; 
+      os<<"; BuiltIn";
     }
     return res;
   }*/
@@ -202,7 +202,7 @@ struct timePartInfo{
     cnt=1;
     Time=getTimeOf(ti.Time);
     TimeBef=getTimeOf(ti.TimeBef);
-    childTime=getTimeOf(ti.childTime); 
+    childTime=getTimeOf(ti.childTime);
   }
 
   timePartInfo& operator+=(const timeInfo& ti){
@@ -255,7 +255,7 @@ struct sumTimeInfoData{
     time(getTimeOf(t.Time)),
     childTime(getTimeOf(t.childTime)),
     timeBef(getTimeOf(t.TimeBef)),
-    topLevelTime(getTimeOf(t.topLevelTime)), cnt(t.cnt), 
+    topLevelTime(getTimeOf(t.topLevelTime)), cnt(t.cnt),
     topLevelCnt(t.topLevelCnt), name(n) {
           PrintingPolicy pp=s->getLangOpts();
           pp.adjustForCPlusPlus();
@@ -754,7 +754,7 @@ CALLGRIND_TOGGLE_COLLECT;
     if ((timeStack.empty() || timeStack.back().ocs != &Set)&&(settings.measureTime & 2)){
     //if ((timeStack.empty() /*|| timeStack.back().ocs != &Set*/)&&(settings.measureTime & 2)){
       std::string typenames;
-      /*if (const auto *objExpr = args.ObjectExpr) { 
+      /*if (const auto *objExpr = args.ObjectExpr) {
         typenames=("|OBJ:"+getObjTypeStr(objExpr));
       }
       for (const auto& E :args.inArgs) {
@@ -763,7 +763,7 @@ CALLGRIND_TOGGLE_COLLECT;
       timeStack.push_back(timeInfo{&Set,args.name + typenames,llvm::TimeRecord::getCurrentTime()});
     } else if ((settings.measureTime & 2)){
       std::string typenames;
-      /*if (const auto *objExpr = args.ObjectExpr) { 
+      /*if (const auto *objExpr = args.ObjectExpr) {
         typenames=("|OBJ:"+getObjTypeStr(objExpr));
       }
       for (const auto& E :args.inArgs) {
@@ -822,12 +822,12 @@ CALLGRIND_TOGGLE_COLLECT;
       }else{
         topLevelTimeSum+=timeStack.back().Time;
       }
-      if (timeStack.back().isDisplayed){ 
+      if (timeStack.back().isDisplayed){
         timeMap[timeStack.back().name] += timeStack.back();
         if (timeStack.size()==1){
-          timeMap[timeStack.back().name].topLevelCnt++; 
-          timeMap[timeStack.back().name].topLevelTime+=timeStack.back().Time; 
-          
+          timeMap[timeStack.back().name].topLevelCnt++;
+          timeMap[timeStack.back().name].topLevelTime+=timeStack.back().Time;
+
           //timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelTime+=getTimeOf(timeStack.back().Time);
           //timeMap[timeStack.back().name].M[timeStack.back().bestFun].topLevelCnt++;
         }
@@ -914,7 +914,7 @@ CALLGRIND_TOGGLE_COLLECT;
     }
   }
   virtual void atOverloadBegin(const Sema &s, const SourceLocation &loc,
-                               const OverloadCandidateSet &set) override {
+                               const OverloadCandidateSet &set, bool C) override {
 
     Loc = loc;
     Set = &set;
@@ -924,7 +924,7 @@ CALLGRIND_TOGGLE_COLLECT;
     if (loc.isInvalid())
       return;
     //assert (!loc.isInvalid());
-    
+
 
     if (!SetArgMap[&set].valid || SetArgMap[&set].Loc != Set->getLocation()){
       SetArgMap.erase(&set);
@@ -938,7 +938,7 @@ CALLGRIND_TOGGLE_COLLECT;
     //if (L.isInvalid())llvm::errs()<<"LI\n";
     unsigned line = L.getLine();
     if ((L.getIncludeLoc().isValid() && !settings.ShowIncludes) ||
-        !inSetInterval(line) || (!settings.ShowEmptyOverloads && set.empty()))
+        !inSetInterval(line) || (!settings.ShowEmptyOverloads && set.empty()&& !C))
       return;
     if (SetArgMap.find(&set) == SetArgMap.end())
       return;
@@ -985,7 +985,7 @@ CALLGRIND_TOGGLE_COLLECT;
     if (settings.measureTime)
 	    timeStack.back().isDisplayed=true;
     if (settings.measureTime && timeStack.size()){
-      timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime(false); 
+      timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime(false);
       timeStack.back().MidTime-=StartSet;
       //timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime();
       //timeStack.back().MidTime-=timeStack.back().startTime;
@@ -1744,7 +1744,7 @@ private:
         llvm::errs()<<"----------\n";*/
         if (conv.UserDefined.ConversionFunction){
 
-        
+
         //conv.UserDefined.dump();
         //conv.UserDefined.Before.dump();
         //llvm::errs()<<"------------\n";

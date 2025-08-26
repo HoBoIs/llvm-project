@@ -34,7 +34,7 @@ public:
   virtual void initialize(const Sema& TheSema)=0;
   virtual void finalize(const Sema& TheSema)=0;
   virtual void atEnd()=0;
-  virtual void atOverloadBegin(const Sema& TheSema,const SourceLocation& Loc,const OverloadCandidateSet& Set)=0;
+  virtual void atOverloadBegin(const Sema& TheSema,const SourceLocation& Loc,const OverloadCandidateSet& Set, bool C=0)=0;
   virtual void atOverloadEnd(const Sema& TheSema,const SourceLocation& Loc,
     const OverloadCandidateSet& Set, OverloadingResult res, const OverloadCandidate* BestOrProblem)=0;
   virtual void atCompareOverloadBegin(const Sema& TheSema,const SourceLocation& Loc,
@@ -64,10 +64,10 @@ template <class OverloadCallbackPtrs>
 void atOverloadBegin(OverloadCallbackPtrs &Callbacks,
                      const Sema &TheSema,
                      const SourceLocation Loc,
-         const OverloadCandidateSet& Set) {
+         const OverloadCandidateSet& Set, bool caching=0) {
   for (auto &C : Callbacks) {
     if (C)
-      C->atOverloadBegin(TheSema, Loc, Set);
+      C->atOverloadBegin(TheSema, Loc, Set,caching);
   }
 }
 

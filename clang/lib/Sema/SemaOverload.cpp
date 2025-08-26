@@ -14967,7 +14967,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   bool cacheHit=0;
   OverloadingResult ovRes;
   bool HadMultipleCandidates;
-#define CACHE_BIN_OP 1
+//#define CACHE_BIN_OP 1
 #if CACHE_BIN_OP>0 
   ADLResult Fns1,Fns2;
   auto hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
@@ -15046,12 +15046,16 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     it=cache.find(key);
   }
 #define isTest 0 
-  if (it!=cache.end() && !isTest ){
+  if (it!=cache.end() && !isTest){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
     HadMultipleCandidates=it->second.hadMultipleCandidates;
+    if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
+          atOverloadBegin(OverloadInspectionCallbacks,*this,OpLoc,CandidateSet,1);
     cacheHit=1;
+    if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
+          atOverloadEnd(OverloadInspectionCallbacks,*this,OpLoc,CandidateSet,/*OR_Success |*/ovRes,Best);
 #ifdef PRINTSTAT
     p.cacheHits++;
 #endif
@@ -15084,11 +15088,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 #if CACHE_BIN_OP>0
       bool cachedNow=false;
       if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
-          if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
-                atOverloadBegin(OverloadInspectionCallbacks,*this,OpLoc,CandidateSet);
           cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
-          if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
-                atOverloadEnd(OverloadInspectionCallbacks,*this,OpLoc,CandidateSet,OR_Success,Best);
 #ifdef PRINTSTAT
           p.cacheSize++;
 #endif
