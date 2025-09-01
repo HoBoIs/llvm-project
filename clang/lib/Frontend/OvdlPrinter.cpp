@@ -221,19 +221,19 @@ struct sumTimeInfo{
   llvm::TimeRecord topLevelTime;
   int cnt=0;
   int topLevelCnt=0;
-  //std::map<BestFunInfo, timePartInfo> M;
+  std::map<BestFunInfo, timePartInfo> M;
   //llvm::DenseMap<BestFunInfo, timePartInfo> M;
   sumTimeInfo& operator+=(const timeInfo& ti){
     Time += ti.Time;
     TimeBef += ti.TimeBef;
     childTime += ti.childTime;
     ++cnt;
-    //auto it=M.find(ti.bestFun);
-   /* if (it==M.end()){
+    auto it=M.find(ti.bestFun);
+    if (it==M.end()){
       M.insert({ti.bestFun,ti});
     }else{
       it->second+=ti;
-    }*/
+    }
     //TODO top level time and info for subnodes
     return *this;
   }
@@ -245,7 +245,7 @@ struct sumTimeInfoData{
   int cnt=0,topLevelCnt=0;
   std::string name;
   //llvm::DenseMap<FunctionDecl*, timePartInfo> subParts;
-  //std::vector<std::pair<std::string, timePartInfo>> subParts;
+  std::vector<std::pair<std::string, timePartInfo>> subParts;
   sumTimeInfoData()=default;
   sumTimeInfoData(sumTimeInfoData&&)=default;
   sumTimeInfoData(const sumTimeInfoData&)=default;
@@ -259,7 +259,7 @@ struct sumTimeInfoData{
     topLevelCnt(t.topLevelCnt), name(n) {
           PrintingPolicy pp=s->getLangOpts();
           pp.adjustForCPlusPlus();
-    //for (const auto& [k,v]: t.M){
+    for (const auto& [k,v]: t.M){
       /*std::string tps;
       if (k){
         if (auto* m=dyn_cast<CXXMethodDecl>(k)){
@@ -277,8 +277,8 @@ struct sumTimeInfoData{
       }else{
         subParts.emplace_back(tps+";\tBuilt in",v);
       }*/
-      //subParts.emplace_back(BestFunClass(k,s->getSourceManager()).printToString(),v);
-    //}
+      subParts.emplace_back(BestFunClass(k,s->getSourceManager()).printToString(),v);
+    }
   }
   sumTimeInfoData(const llvm::TimeRecord& t, const std::string& n):
     time(getTimeOf(t)),
@@ -448,7 +448,7 @@ template <> struct MappingTraits<sumTimeInfoData> {
     io.mapRequired("top-level-time",fields.topLevelTime);
     io.mapRequired("top-level-count",fields.topLevelCnt);
 
-//    io.mapRequired("subParts",fields.subParts);
+    io.mapRequired("subParts",fields.subParts);
   }
 };
 template <> struct MappingTraits<std::pair<std::string,timePartInfo>> {
