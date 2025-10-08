@@ -35,3 +35,5 @@ CandName:($functionName) for filtering functions by name
 [Hide/**Show**/Verbose]Conversions for Showing/Hiding the conversions needed for the candtdates
 
 PrintYAML for printing YAML instead of remarks/notes
+
+To Enable caching add -DCMAKE\_CXX\_FLAGY="-DCACHE\_BIN\_OP=1" when compiling the project
