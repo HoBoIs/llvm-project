@@ -215,6 +215,7 @@ struct timePartInfo{
 };
 
 struct sumTimeInfo{
+  static bool hasSubParts;
   llvm::TimeRecord Time;
   llvm::TimeRecord TimeBef;
   llvm::TimeRecord childTime;
@@ -228,16 +229,22 @@ struct sumTimeInfo{
     TimeBef += ti.TimeBef;
     childTime += ti.childTime;
     ++cnt;
-    auto it=M.find(ti.bestFun);
-    if (it==M.end()){
-      M.insert({ti.bestFun,ti});
-    }else{
-      it->second+=ti;
+    if (hasSubParts){
+      auto it=M.find(ti.bestFun);
+      if (it==M.end()){
+        M.insert({ti.bestFun,ti});
+      }else{
+        it->second+=ti;
+      }
     }
     //TODO top level time and info for subnodes
     return *this;
   }
+  static void setHasSubParts(bool v){
+    hasSubParts=v;
+  }
 };
+bool sumTimeInfo::hasSubParts=false;
 struct sumTimeInfoData{
   double time=0,childTime=0;
   double timeBef=0;
@@ -711,6 +718,7 @@ class DefaultOverloadInstCallback : public OverloadCallback {
 public:
   PrintingPolicy pp=LangOptions();
   DefaultOverloadInstCallback(const clang::FrontendOptions::OvInsSettingsType& s): settings(s){
+    sumTimeInfo::setHasSubParts(s.ProfileLevel>=4);
     pp.adjustForCPlusPlus();
   /*
     if (auto *InjTy = ClassType->getAs<InjectedClassNameType>()) {
@@ -982,7 +990,7 @@ CALLGRIND_TOGGLE_COLLECT;
       return;
     }
     assert(timeStack.empty() ||  &set == timeStack.back().ocs);
-    if (settings.measureTime)
+    if (settings.measureTime && settings.ProfileLevel>0)
 	    timeStack.back().isDisplayed=true;
     if (settings.measureTime && timeStack.size()){
       timeStack.back().MidTime=llvm::TimeRecord::getCurrentTime(false);

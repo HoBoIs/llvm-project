@@ -619,6 +619,7 @@ public:
     unsigned SummarizeBuiltInBinOps:1;
     unsigned PrintYAML:1;
     unsigned measureTime:2;
+    unsigned ProfileLevel:4;
   }OvInsSettings;
 
 
@@ -639,7 +640,7 @@ public:
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
         TimeTraceVerbose(false), 
-        OvInsSettings({{},"",false,true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None}) {}
+        OvInsSettings({{},"",false,true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None,3}) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.
