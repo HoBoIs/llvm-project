@@ -622,6 +622,9 @@ public:
     unsigned ProfileLevel:4;
   }OvInsSettings;
 
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned OverloadCaching : 1;
+
 
 public:
   FrontendOptions()
@@ -640,7 +643,8 @@ public:
         EmitPrettySymbolGraphs(false), GenReducedBMI(false),
         UseClangIRPipeline(false), TimeTraceGranularity(500),
         TimeTraceVerbose(false), 
-        OvInsSettings({{},"",false,true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None,3}) {}
+        OvInsSettings({{},"",false,true,false,SC_Normal,false,false,SC_Normal,false,true,true,false,SC_None,1}),
+        OverloadCaching(false) {}
 
   /// getInputKindForExtension - Return the appropriate input kind for a file
   /// extension. For example, "c" would return Language::C.

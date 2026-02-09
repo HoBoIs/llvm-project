@@ -764,6 +764,7 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
   }
   if (getFrontendOpts().OvInsSettings.enabled)
     TheSema->OverloadInspectionCallbacks.push_back(makeDefaultOverloadCallback(getFrontendOpts().OvInsSettings));
+  TheSema->OverloadCaching=getFrontendOpts().OverloadCaching;
 }
 
 // Output Files

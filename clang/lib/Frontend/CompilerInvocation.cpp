@@ -2838,6 +2838,9 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
         <<(Opts.OvInsSettings.PrintYAML?",PrintYAML":"");
       GenerateArg(Consumer, OPT_ovins_dump_opt,argStr);
   }
+  if (Opts.OverloadCaching){
+      GenerateArg(Consumer, OPT_ov_cache );
+  }
   // FIXME: Simplify the complex 'AST dump' command line.
   if (Opts.ProgramAction == frontend::ASTDump) {
     GenerateProgramAction = [&]() {
@@ -2993,6 +2996,9 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
 
   Opts.ProgramAction = frontend::ParseSyntaxOnly;
 
+  if (Args.hasArg(OPT_ov_cache)){
+    Opts.OverloadCaching=true;
+  }
   if (Args.hasArg(OPT_ovins_dump_opt,OPT_ovins_dump)){
     auto* A=Args.getLastArg(OPT_ovins_dump_opt,OPT_ovins_dump);
     OptSpecifier Opt = OptSpecifier(A->getOption().getID());

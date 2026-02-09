@@ -7763,6 +7763,8 @@ def Wno_rewrite_macros : Flag<["-"], "Wno-rewrite-macros">,
   HelpText<"Silence ObjC rewriting warnings">,
   MarshallingInfoFlag<DiagnosticOpts<"NoRewriteMacros">>;
 
+def ov_cache : Flag<["-"], "ov-cache">,
+  HelpText<"Turns overload caching on">;
 def ovins_dump : Flag<["-"], "ovins-dump">,
   HelpText<"Dump ovins information to stdout">;
 def ovins_dump_opt : CommaJoined<["-"], "ovins-dump-opt=">,

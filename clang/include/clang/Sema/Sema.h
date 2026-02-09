@@ -12870,6 +12870,8 @@ public:
   llvm::SmallVector<std::unique_ptr<OverloadCallback>,1>
       OverloadInspectionCallbacks;
 
+  bool OverloadCaching;
+
   /// A stack object to be created when performing template
   /// instantiation.
   ///
