@@ -14873,7 +14873,58 @@ static NamedDecl* getFirstRewritten(const UnresolvedSetImpl &Fns,DeclarationName
   //return Fns[fst]->getAsFunction();
   return Fns[fst];
 };
-
+namespace {
+  struct CacheKey{
+    const QualType lhs,rhs;
+    //const ExprValueKind lk,rk;
+    //const OverloadedOperatorKind Kind; 
+    //const bool AllowRewritten;
+    const int CombinedData;
+    const unsigned int size,AdlSize;
+    const NamedDecl* fst, *fstRewriten;
+    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS,const UnresolvedSetImpl& Fns,DeclarationName rewritenOp):
+                          lhs(Args[0]->getType().getCanonicalType()),
+                          rhs(Args[1]->getType().getCanonicalType()),
+                          CombinedData(CanRewrite | 
+                                (Args[0]->getValueKind()<<1) | 
+                                (Args[1]->getValueKind()<<3) |
+                                ((lhs->getAsCXXRecordDecl()&&lhs->getAsCXXRecordDecl()->hasDefinition())<<5)|
+                                ((CanRewrite &&
+                                 rhs->getAsCXXRecordDecl()&&rhs->getAsCXXRecordDecl()->hasDefinition())<<6)|
+                                (K<<7)),
+                          size(s),AdlSize(AdlS),
+                          fst(Fns.size()?(NamedDecl*)Fns[0]:nullptr),fstRewriten(getFirstRewritten(Fns, rewritenOp)){
+                            //lhs->getAsCXXRecordDecl()->methods().begin()-lhs->getAsCXXRecordDecl()->methods().begin();
+                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS < std::numeric_limits<int>::max()/(1<<7),"Why do we have this many operators? This in nonsense!");
+                          };
+                          //lk(Args[0]->getValueKind()),
+                          //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
+    bool operator==(const CacheKey& o)const{
+      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && 
+             size==o.size && AdlSize==o.AdlSize && fst==o.fst && fstRewriten==o.fstRewriten;
+      // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
+    }
+  };
+  struct CacheHash{
+    size_t operator()(const CacheKey& val)const{
+      return size_t (val.lhs.getAsOpaquePtr()) ^
+        (size_t(val.rhs.getAsOpaquePtr()) << 1) ^
+        (size_t(val.CombinedData+(size_t(val.size)<<32)) <<2);
+    };
+  };
+  struct CacheValue{
+    OverloadCandidate cand;
+    llvm::SmallVector<ImplicitConversionSequence,2> ICS;
+    OverloadingResult res;
+    bool hadMultipleCandidates;
+    CacheValue(const OverloadCandidate& c, OverloadingResult r, bool h): 
+        cand(c),
+        ICS(c.Conversions.begin(),c.Conversions.end()),
+        res(r),
+        hadMultipleCandidates(h){
+    }
+  };
+};
 ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                                        BinaryOperatorKind Opc,
                                        const UnresolvedSetImpl &Fns, Expr *LHS,
@@ -14969,65 +15020,15 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
   bool HadMultipleCandidates;
 //#define CACHE_BIN_OP 1
 #if CACHE_BIN_OP>0 
-  ADLResult Fns1,Fns2;
-  auto hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
-  struct CacheKey{
-    const QualType lhs,rhs;
-    //const ExprValueKind lk,rk;
-    //const OverloadedOperatorKind Kind; 
-    //const bool AllowRewritten;
-    const int CombinedData;
-    const unsigned int size,AdlSize;
-    const NamedDecl* fst, *fstRewriten;
-    CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS,const UnresolvedSetImpl& Fns,DeclarationName rewritenOp):
-                          lhs(Args[0]->getType().getCanonicalType()),
-                          rhs(Args[1]->getType().getCanonicalType()),
-                          CombinedData(CanRewrite | 
-                                (Args[0]->getValueKind()<<1) | 
-                                (Args[1]->getValueKind()<<3) |
-                                ((lhs->getAsCXXRecordDecl()&&lhs->getAsCXXRecordDecl()->hasDefinition())<<5)|
-                                ((CanRewrite &&
-                                 rhs->getAsCXXRecordDecl()&&rhs->getAsCXXRecordDecl()->hasDefinition())<<6)|
-                                (K<<7)),
-                          size(s),AdlSize(AdlS),
-                          fst(Fns.size()?(NamedDecl*)Fns[0]:nullptr),fstRewriten(getFirstRewritten(Fns, rewritenOp)){
-                            //lhs->getAsCXXRecordDecl()->methods().begin()-lhs->getAsCXXRecordDecl()->methods().begin();
-                            static_assert(OverloadedOperatorKind::NUM_OVERLOADED_OPERATORS < std::numeric_limits<int>::max()/(1<<7),"Why do we have this many operators? This in nonsense!");
-                          };
-                          //lk(Args[0]->getValueKind()),
-                          //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
-    bool operator==(const CacheKey& o)const{
-      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && 
-             size==o.size && AdlSize==o.AdlSize && fst==o.fst && fstRewriten==o.fstRewriten;
-      // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
-    }
-  };
-  struct CacheHash{
-    size_t operator()(const CacheKey& val)const{
-      return size_t (val.lhs.getAsOpaquePtr()) ^
-        (size_t(val.rhs.getAsOpaquePtr()) << 1) ^
-        (size_t(val.CombinedData+(size_t(val.size)<<32)) <<2);
-    };
-  };
-  struct CacheValue{
-    OverloadCandidate cand;
-    llvm::SmallVector<ImplicitConversionSequence,2> ICS;
-    OverloadingResult res;
-    bool hadMultipleCandidates;
-    CacheValue(const OverloadCandidate& c, OverloadingResult r, bool h): 
-        cand(c),
-        ICS(c.Conversions.begin(),c.Conversions.end()),
-        res(r),
-        hadMultipleCandidates(h){
-    }
-  };
   static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
   auto it=  cache.end();
-  auto OpName=Context.DeclarationNames.getCXXOperatorName(Op);
-  DeclarationName ExtraOpName;
   //if (const auto* T1=Args[0]->getType()->getAs<RecordType>())
   //  if (!T1->isBeingDefined())
+#endif
+  DeclarationName ExtraOpName{};
+  ADLResult Fns1,Fns2;
   if (Op != OO_Equal && PerformADL) {
+    DeclarationName OpName=Context.DeclarationNames.getCXXOperatorName(Op);
     Fns1 = getADLLookupRaw(OpName, OpLoc, Args, *this);
 
     OverloadedOperatorKind ExtraOp =
@@ -15041,12 +15042,14 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
       Fns2=getADLLookupRaw(ExtraOpName, OpLoc, Args, *this);
     }
   }
+#if CACHE_BIN_OP>0 
+  bool hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
   CacheKey key(Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size(),Fns,ExtraOpName);
   if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
     it=cache.find(key);
   }
 #define isTest 0 
-  if (it!=cache.end() && !isTest){
+  if (OverloadCaching && it!=cache.end() && !isTest){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
@@ -15060,16 +15063,16 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     p.cacheHits++;
 #endif
   }else {
-    if (it!=cache.end() && isTest ){
+    if (OverloadCaching && it!=cache.end() && isTest ){
       cacheHit=1;
     }
 #endif
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
   LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL
-#if CACHE_BIN_OP>0 
+//#if CACHE_BIN_OP>0 
       ,&Fns1,&Fns2
-#endif
+//#endif
       );
 
   HadMultipleCandidates = (CandidateSet.size() > 1);
@@ -15087,15 +15090,17 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     case OR_Success: {
 #if CACHE_BIN_OP>0
       bool cachedNow=false;
-      if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
-          cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
+      if (OverloadCaching){
+        if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
+            cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
 #ifdef PRINTSTAT
-          p.cacheSize++;
+            p.cacheSize++;
 #endif
           cachedNow=true;
-      }else{
-        if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
-          assert(it->second.cand==*Best);
+        }else{
+          if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
+            assert(it->second.cand==*Best);
+          }
         }
       }
 #endif
