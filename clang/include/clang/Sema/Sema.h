@@ -14,6 +14,19 @@
 #ifndef LLVM_CLANG_SEMA_SEMA_H
 #define LLVM_CLANG_SEMA_SEMA_H
 
+#if CACHE_BIN_OP>0
+#define IFCACHE(a) a
+#define IFCACHEC(a) a,
+#define IFCACHEC2(a) ,a
+#define IFNCACHE(a)
+#define IFNCACHEC(a)
+#else
+#define IFCACHE(a)
+#define IFCACHEC(a)
+#define IFCACHEC2(a)
+#define IFNCACHE(a) a
+#define IFNCACHEC(a) a,
+#endif
 #include "clang/APINotes/APINotesManager.h"
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/ASTLambda.h"
@@ -10333,7 +10346,7 @@ public:
   void AddArgumentDependentLookupCandidates(
       DeclarationName Name, SourceLocation Loc, ArrayRef<Expr *> Args,
       TemplateArgumentListInfo *ExplicitTemplateArgs,
-      OverloadCandidateSet &CandidateSet, ADLResult Fns, bool PartialOverloading = false);
+      OverloadCandidateSet &CandidateSet, IFCACHEC(ADLResult& Fns) bool PartialOverloading = false);
 
   /// Check the enable_if expressions on the given function. Returns the first
   /// failing attribute, or NULL if they were all successful.
@@ -10551,8 +10564,8 @@ public:
   void LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
                              OverloadedOperatorKind Op,
                              const UnresolvedSetImpl &Fns,
-                             ArrayRef<Expr *> Args, bool RequiresADL = true, 
-                             ADLResult* Fns1=nullptr, ADLResult* Fns2=nullptr);
+                             ArrayRef<Expr *> Args,
+                             IFCACHEC(ADLResult* Fns1) IFCACHEC(ADLResult* Fns2) bool PerformADL=true);
 
   /// Create a binary operation that may resolve to an overloaded
   /// operator.

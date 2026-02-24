@@ -1675,7 +1675,7 @@ TryUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
   OverloadCandidateSet Conversions(S, From->getExprLoc(),
                                    OverloadCandidateSet::CSK_Normal);
   if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty() )){
-      addSetInfo(S.OverloadInspectionCallbacks, Conversions, 
+      addSetInfo(S.OverloadInspectionCallbacks, Conversions,
                  {ToType.getAsString()+" Y",From,{},{},AllowExplicit==AllowedExplicit::None});
       //toType.toString();
   }
@@ -5064,7 +5064,7 @@ FindConversionForRefInit(Sema &S, ImplicitConversionSequence &ICS,
   OverloadCandidateSet CandidateSet(S,
       DeclLoc, OverloadCandidateSet::CSK_InitByUserDefinedConversion);
   if (LLVM_UNLIKELY(!S.OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
-    addSetInfo(S.OverloadInspectionCallbacks, CandidateSet, 
+    addSetInfo(S.OverloadInspectionCallbacks, CandidateSet,
                {T2.getAsString(),Init,{},{},!AllowExplicit});
   //T2.getAsString();
   const auto &Conversions = T2RecordDecl->getVisibleConversionFunctions();
@@ -10202,7 +10202,7 @@ void Sema::AddBuiltinOperatorCandidates(OverloadedOperatorKind Op,
     break;
   }
 }
-
+/*
 static ADLResult getADLLookupRaw(const DeclarationName& Name,
                                  const SourceLocation& Loc,
                                  ArrayRef<Expr *> Args,
@@ -10219,7 +10219,7 @@ static ADLResult getADLLookupRaw(const DeclarationName& Name,
   // FIXME: Pass in the explicit template arguments?
   S.ArgumentDependentLookup(Name, Loc, Args, Fns);
   return Fns;
-}
+}*/
 
 void
 Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
@@ -10227,11 +10227,12 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
                                            ArrayRef<Expr *> Args,
                                  TemplateArgumentListInfo *ExplicitTemplateArgs,
                                            OverloadCandidateSet& CandidateSet,
-                                           ADLResult Fns,
+                                           IFCACHEC(ADLResult& Fns)
                                            bool PartialOverloading) {
   //ADLResult Fns(getADLLookupRaw(Name, Loc, Args, *this));
-  /*
-  ADLResult Fns;
+#if CACHE_BIN_OP>0
+#else
+  IFNCACHE(ADLResult Fns);
 //ADL here!!!
   // FIXME: This approach for uniquing ADL results (and removing
   // redundant candidates from the set) relies on pointer-equality,
@@ -10241,8 +10242,8 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
   // we supposed to consider on ADL candidates, anyway?
 
   // FIXME: Pass in the explicit template arguments?
-  ArgumentDependentLookup(Name, Loc, Args, Fns);*/
-
+  IFNCACHE(ArgumentDependentLookup(Name, Loc, Args, Fns));
+#endif
   // Erase all of the candidates we already knew about.
   for (OverloadCandidateSet::iterator Cand = CandidateSet.begin(),
                                    CandEnd = CandidateSet.end();
@@ -13951,11 +13952,16 @@ void Sema::AddOverloadedCallCandidates(UnresolvedLookupExpr *ULE,
                                CandidateSet, PartialOverloading,
                                /*KnownValid*/ true);
 
-  if (ULE->requiresADL())
+  if (ULE->requiresADL()){
+#if CACHE_BIN_OP>0
+    ADLResult Fns;
+    ArgumentDependentLookup(ULE->getName(), ULE->getExprLoc(), Args, Fns);
+#endif
     AddArgumentDependentLookupCandidates(ULE->getName(), ULE->getExprLoc(),
                                          Args, ExplicitTemplateArgs,
                                          CandidateSet,
-                                         getADLLookupRaw(ULE->getName(), ULE->getExprLoc(), Args, *this), PartialOverloading);
+                                         IFCACHEC(Fns) PartialOverloading);
+  }
 }
 
 void Sema::AddOverloadedCallCandidates(
@@ -14658,9 +14664,13 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
 
   // Add candidates from ADL.
   if (PerformADL) {
+#if CACHE_BIN_OP>0
+    ADLResult Fns;
+    ArgumentDependentLookup(OpName,OpLoc, ArgsArray, Fns);
+#endif
     AddArgumentDependentLookupCandidates(OpName, OpLoc, ArgsArray,
                                          /*ExplicitTemplateArgs*/nullptr,
-                                         CandidateSet,getADLLookupRaw(OpName, OpLoc, ArgsArray, *this));
+                                         CandidateSet IFCACHEC2(Fns));
   }
 
   // Add builtin operator candidates.
@@ -14796,8 +14806,8 @@ Sema::CreateOverloadedUnaryOp(SourceLocation OpLoc, UnaryOperatorKind Opc,
 void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
                                  OverloadedOperatorKind Op,
                                  const UnresolvedSetImpl &Fns,
-                                 ArrayRef<Expr *> Args, bool PerformADL,
-                                 ADLResult* Fns1, ADLResult* Fns2) {
+                                 ArrayRef<Expr *> Args,
+                                 IFCACHEC(ADLResult* Fns1) IFCACHEC(ADLResult* Fns2) bool PerformADL) {
   SourceLocation OpLoc = CandidateSet.getLocation();
 
   OverloadedOperatorKind ExtraOp =
@@ -14829,16 +14839,44 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
   // which don't get here).
   if (Op != OO_Equal && PerformADL) {
     DeclarationName OpName = Context.DeclarationNames.getCXXOperatorName(Op);
-    AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
+#if CACHE_BIN_OP>0
+    if (!Fns1) {
+      ADLResult Fnsa;
+      ArgumentDependentLookup(OpName, OpLoc, Args, Fnsa);
+      AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
                                          /*ExplicitTemplateArgs*/ nullptr,
-                                         CandidateSet, Fns1?std::move(*Fns1):getADLLookupRaw(OpName, OpLoc, Args, *this));
+                                         CandidateSet, Fnsa);
+    }else{
+      AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
+                                         /*ExplicitTemplateArgs*/ nullptr,
+                                         CandidateSet, *Fns1);
+    }
     if (ExtraOp) {
       DeclarationName ExtraOpName =
           Context.DeclarationNames.getCXXOperatorName(ExtraOp);
+    if ( IFNCACHE (0 &&) !Fns2) {
+      ADLResult Fnsa;
+      ArgumentDependentLookup(ExtraOpName, OpLoc, Args, Fnsa);
       AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
                                            /*ExplicitTemplateArgs*/ nullptr,
-                                           CandidateSet, Fns2?std::move(*Fns2):getADLLookupRaw(ExtraOpName, OpLoc, Args, *this));
+                                           CandidateSet, Fnsa);
+    }else
+      AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
+                                           /*ExplicitTemplateArgs*/ nullptr,
+                                           CandidateSet, *Fns2);
     }
+#else
+    AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
+                                         /*ExplicitTemplateArgs*/ nullptr,
+                                         CandidateSet);
+    if (ExtraOp) {
+      DeclarationName ExtraOpName =
+          Context.DeclarationNames.getCXXOperatorName(ExtraOp);
+    AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
+                                           /*ExplicitTemplateArgs*/ nullptr,
+                                           CandidateSet);
+    }
+#endif
   }
 
   // Add builtin operator candidates.
@@ -14857,6 +14895,7 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
   AddBuiltinOperatorCandidates(Op, OpLoc, Args, CandidateSet);
 }
 
+#if CACHE_BIN_OP>0
 static NamedDecl* getFirstRewritten(const UnresolvedSetImpl &Fns,DeclarationName rewritenOp){
   if (rewritenOp.isEmpty())return nullptr;
   unsigned fst=0;
@@ -14867,7 +14906,7 @@ static NamedDecl* getFirstRewritten(const UnresolvedSetImpl &Fns,DeclarationName
     unsigned mid=(fst+lst)/2;
     if (Fns[mid]->getDeclName() == rewritenOp)
       fst=mid;
-    else 
+    else
       lst=mid;
   }
   //return Fns[fst]->getAsFunction();
@@ -14877,16 +14916,17 @@ namespace {
   struct CacheKey{
     const QualType lhs,rhs;
     //const ExprValueKind lk,rk;
-    //const OverloadedOperatorKind Kind; 
+    //const OverloadedOperatorKind Kind;
     //const bool AllowRewritten;
     const int CombinedData;
     const unsigned int size,AdlSize;
     const NamedDecl* fst, *fstRewriten;
+    CacheKey():lhs(),rhs(),CombinedData(),size(),AdlSize(),fst(),fstRewriten(){}
     CacheKey(const Expr * const Args[2],OverloadedOperatorKind K,bool CanRewrite,size_t s,size_t AdlS,const UnresolvedSetImpl& Fns,DeclarationName rewritenOp):
                           lhs(Args[0]->getType().getCanonicalType()),
                           rhs(Args[1]->getType().getCanonicalType()),
-                          CombinedData(CanRewrite | 
-                                (Args[0]->getValueKind()<<1) | 
+                          CombinedData(CanRewrite |
+                                (Args[0]->getValueKind()<<1) |
                                 (Args[1]->getValueKind()<<3) |
                                 ((lhs->getAsCXXRecordDecl()&&lhs->getAsCXXRecordDecl()->hasDefinition())<<5)|
                                 ((CanRewrite &&
@@ -14900,7 +14940,7 @@ namespace {
                           //lk(Args[0]->getValueKind()),
                           //rk(Args[1]->getValueKind()),Kind(K),AllowRewritten(CanRewrite){};
     bool operator==(const CacheKey& o)const{
-      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData && 
+      return lhs==o.lhs && rhs==o.rhs && CombinedData==o.CombinedData &&
              size==o.size && AdlSize==o.AdlSize && fst==o.fst && fstRewriten==o.fstRewriten;
       // && lk==o.lk && rk ==o.rk && Kind==o.Kind && AllowRewritten==o.AllowRewritten;
     }
@@ -14917,7 +14957,7 @@ namespace {
     llvm::SmallVector<ImplicitConversionSequence,2> ICS;
     OverloadingResult res;
     bool hadMultipleCandidates;
-    CacheValue(const OverloadCandidate& c, OverloadingResult r, bool h): 
+    CacheValue(const OverloadCandidate& c, OverloadingResult r, bool h):
         cand(c),
         ICS(c.Conversions.begin(),c.Conversions.end()),
         res(r),
@@ -14925,6 +14965,7 @@ namespace {
     }
   };
 };
+#endif
 ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
                                        BinaryOperatorKind Opc,
                                        const UnresolvedSetImpl &Fns, Expr *LHS,
@@ -15015,21 +15056,20 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     //getOperatorSpelling(Set->getRewriteInfo().OriginalOperator);
   //spelling of Opc
   OverloadCandidateSet::iterator Best;
-  bool cacheHit=0;
   OverloadingResult ovRes;
   bool HadMultipleCandidates;
 //#define CACHE_BIN_OP 1
-#if CACHE_BIN_OP>0 
+#if CACHE_BIN_OP>0
+  bool cacheHit=0;
   static std::unordered_map<CacheKey, CacheValue,CacheHash> cache;
   auto it=  cache.end();
   //if (const auto* T1=Args[0]->getType()->getAs<RecordType>())
   //  if (!T1->isBeingDefined())
-#endif
   DeclarationName ExtraOpName{};
   ADLResult Fns1,Fns2;
   if (Op != OO_Equal && PerformADL) {
     DeclarationName OpName=Context.DeclarationNames.getCXXOperatorName(Op);
-    Fns1 = getADLLookupRaw(OpName, OpLoc, Args, *this);
+    ArgumentDependentLookup(OpName, OpLoc, Args, Fns1);
 
     OverloadedOperatorKind ExtraOp =
       CandidateSet.getRewriteInfo().AllowRewrittenCandidates
@@ -15039,17 +15079,19 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
       ExtraOpName =
           Context.DeclarationNames.getCXXOperatorName(ExtraOp);
       //DeclarationName ExtraOpName =
-      Fns2=getADLLookupRaw(ExtraOpName, OpLoc, Args, *this);
+      ArgumentDependentLookup(ExtraOpName, OpLoc, Args, Fns2);
     }
   }
-#if CACHE_BIN_OP>0 
+#define isTest 0
   bool hasInitList=isa<InitListExpr> (Args[0]) || isa<InitListExpr>(Args[1]);
-  CacheKey key(Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size(),Fns,ExtraOpName);
-  if (!hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
+  bool DoCache=OverloadCaching && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc);
+  CacheKey key=DoCache?
+        CacheKey(Args,Op,AllowRewrittenCandidates,Fns.size(),Fns1.size()+Fns2.size(),Fns,ExtraOpName)
+        :CacheKey{};
+  if (DoCache){
     it=cache.find(key);
   }
-#define isTest 0 
-  if (OverloadCaching && it!=cache.end() && !isTest){
+  if (DoCache && it!=cache.end() && !isTest){
     ovRes=it->second.res;
     Best=&it->second.cand;
     Best->Conversions=it->second.ICS;
@@ -15069,10 +15111,11 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 #endif
   if (DefaultedFn)
     CandidateSet.exclude(DefaultedFn);
-  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args, PerformADL
-//#if CACHE_BIN_OP>0 
+  LookupOverloadedBinOp(CandidateSet, Op, Fns, Args
+#if CACHE_BIN_OP>0
       ,&Fns1,&Fns2
-//#endif
+#endif
+      , PerformADL
       );
 
   HadMultipleCandidates = (CandidateSet.size() > 1);
@@ -15090,15 +15133,15 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
     case OR_Success: {
 #if CACHE_BIN_OP>0
       bool cachedNow=false;
-      if (OverloadCaching){
-        if (!cacheHit && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc) ){
+      if (DoCache){
+        if (!cacheHit){
             cache.insert(it,{key,CacheValue(*Best,ovRes,HadMultipleCandidates)});
 #ifdef PRINTSTAT
             p.cacheSize++;
 #endif
           cachedNow=true;
         }else{
-          if (isTest && !hasInitList && !SourceMgr.isInSystemHeader(OpLoc)){
+          if (isTest){
             assert(it->second.cand==*Best);
           }
         }
@@ -15163,7 +15206,7 @@ ExprResult Sema::CreateOverloadedBinOp(SourceLocation OpLoc,
 
           if (!AmbiguousWith.empty()) {
 #if CACHE_BIN_OP>0
-            if (!cachedNow){
+            if (cachedNow){
               cache.erase(it);
 #ifdef PRINTSTAT
               p.cacheSize--;
@@ -15662,7 +15705,7 @@ ExprResult Sema::CreateOverloadedArraySubscriptExpr(SourceLocation LLoc,
   // Build an empty overload set.
   OverloadCandidateSet CandidateSet(*this,LLoc, OverloadCandidateSet::CSK_Operator);
   if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))
-      addSetInfo(OverloadInspectionCallbacks, CandidateSet, 
+      addSetInfo(OverloadInspectionCallbacks, CandidateSet,
                 {Args[0]->getType().getAsString()+"[]",Args,RLoc});
   //Args[0]->getType().toString()?+"[]"
 
@@ -15920,10 +15963,8 @@ ExprResult Sema::BuildCallToMemberFunction(Scope *S, Expr *MemExprE,
     // Add overload candidates
     OverloadCandidateSet CandidateSet(*this,UnresExpr->getMemberLoc(), OverloadCandidateSet::CSK_Normal);
     if (LLVM_UNLIKELY(!OverloadInspectionCallbacks.empty()))//TODO:MaybeRemove
-      addSetInfo(OverloadInspectionCallbacks, CandidateSet, 
+      addSetInfo(OverloadInspectionCallbacks, CandidateSet,
                  {UnresExpr->getMemberNameInfo().getName().getAsString(),Args,RParenLoc,UnresExpr});
-    
-    
 
 
     // FIXME: avoid copy.

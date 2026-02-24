@@ -8091,8 +8091,14 @@ private:
     ///   resolution [...]
     CandidateSet.exclude(FD);
 
-    if (Args[0]->getType()->isOverloadableType())
+    if (Args[0]->getType()->isOverloadableType()){
+#if CACHE_BIN_OP>0
+
+      S.LookupOverloadedBinOp(CandidateSet, OO, Fns, Args,nullptr,nullptr);
+#else
       S.LookupOverloadedBinOp(CandidateSet, OO, Fns, Args);
+#endif
+    }
     else
       // FIXME: We determine whether this is a valid expression by checking to
       // see if there's a viable builtin operator candidate for it. That isn't
