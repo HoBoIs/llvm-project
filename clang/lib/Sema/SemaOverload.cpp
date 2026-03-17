@@ -14854,16 +14854,16 @@ void Sema::LookupOverloadedBinOp(OverloadCandidateSet &CandidateSet,
     if (ExtraOp) {
       DeclarationName ExtraOpName =
           Context.DeclarationNames.getCXXOperatorName(ExtraOp);
-    if ( !Fns2) {
-      ADLResult Fnsa;
-      ArgumentDependentLookup(ExtraOpName, OpLoc, Args, Fnsa);
-      AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
-                                           /*ExplicitTemplateArgs*/ nullptr,
-                                           CandidateSet, Fnsa);
-    }else
-      AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
-                                           /*ExplicitTemplateArgs*/ nullptr,
-                                           CandidateSet, *Fns2);
+      if ( !Fns2) {
+        ADLResult Fnsa;
+        ArgumentDependentLookup(ExtraOpName, OpLoc, Args, Fnsa);
+        AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
+                                             /*ExplicitTemplateArgs*/ nullptr,
+                                             CandidateSet, Fnsa);
+      }else
+        AddArgumentDependentLookupCandidates(ExtraOpName, OpLoc, Args,
+                                             /*ExplicitTemplateArgs*/ nullptr,
+                                             CandidateSet, *Fns2);
     }
 #else
     AddArgumentDependentLookupCandidates(OpName, OpLoc, Args,
